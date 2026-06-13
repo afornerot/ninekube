@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-manager
+  namespace: cert-manager
+  labels:
+    app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/part-of: ninekube
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cert-manager
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cert-manager
+        app.kubernetes.io/part-of: ninekube
+    spec:
+      serviceAccountName: cert-manager
+      containers:
+        - name: cert-manager
+          image: quay.io/jetstack/cert-manager-controller:v1.14.5
+          args:
+            - --v=2
+            - --cluster-resource-namespace=cert-manager
+            - --leader-election-namespace=cert-manager
+          resources:
+            requests:
+              cpu: 50m
+              memory: 50Mi

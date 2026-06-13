@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tinyfilemanager-config
+  namespace: nine
+  labels:
+    app.kubernetes.io/name: tinyfilemanager
+    app.kubernetes.io/part-of: ninekube
+data:
+  tinyfilemanager.php: |
+    <?php
+    // Tiny File Manager Configuration
+    // Docs: https://github.com/prasathmani/tinyfilemanager
+
+    // Auth users (passwords are bcrypt hashed)
+    $auth_users = array(
+        'admin' => '$2y$10$YourHashedPasswordHere',
+    );
+
+    // Readonly users
+    $readonly_users = array();
+
+    // Root path
+    $root_path = '/var/www/html/data';
+
+    // Root URL
+    $root_url = '';
+
+    // File extension MIME types
+    $mime_types = array();
+
+    // Theme
+    $theme = 'light';
+
+    // Date format
+    $date_format = 'd M Y H:i';
+
+    // Language
+    $language = 'en';
+
+    // Upload allowed
+    $allow_upload = true;
+
+    // Create folder allowed
+    $allow_create = true;
+
+    // Delete allowed
+    $allow_delete = true;
+
+    // Copy/Move allowed
+    $allow_copy_move = true;
+    ?>

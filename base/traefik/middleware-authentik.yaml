@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: authentik-forwardauth
+  namespace: kube-system
+spec:
+  forwardAuth:
+    address: "http://dev-authentik.nine.svc.cluster.local:9000/outpost.goauthentik.io/auth/traefik"
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-Authentik-Username
+      - X-Authentik-Groups
+      - X-Authentik-Email
+      - X-Authentik-Name

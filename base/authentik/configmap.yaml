@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-config
+  namespace: nine
+  labels:
+    app.kubernetes.io/name: authentik
+    app.kubernetes.io/part-of: ninekube
+data:
+  AUTHENTIK_REDIS__HOST: "redis"
+  AUTHENTIK_REDIS__PORT: "6379"
+  AUTHENTIK_POSTGRESQL__HOST: "postgres"
+  AUTHENTIK_POSTGRESQL__PORT: "5432"
+  AUTHENTIK_POSTGRESQL__NAME: "authentik"
+  AUTHENTIK_POSTGRESQL__USER: "authentik"
+  AUTHENTIK_FOOTER: '<a href="https://nine.local">Ninekube</a>'
+  AUTHENTIK_DEFAULT_USER_CHANGE_EMAIL: "true"
+  AUTHENTIK_DEFAULT_USER_CHANGE_USERNAME: "true"
+  AUTHENTIK_BOOTSTRAP_PASSWORD: "changeme"
+  AUTHENTIK_BOOTSTRAP_EMAIL: "admin@nine.local"

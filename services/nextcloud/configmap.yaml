@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nextcloud-config
+  namespace: nine
+  labels:
+    app.kubernetes.io/name: nextcloud
+    app.kubernetes.io/part-of: ninekube
+data:
+  zzz-custom.ini: |
+    memory_limit = 512M
+    upload_max_filesize = 16M
+    post_max_size = 16M
+    max_execution_time = 3600
+    max_input_time = 3600
