@@ -29,6 +29,9 @@ DATABASE_URL="postgresql://${PG_USER}:${PG_PASS}@postgres:5432/ninegate?serverVe
 
 LDAP_BASE_DN="dc=$(echo "${DOMAIN}" | sed 's/\./,dc=/g')"
 
+RUSTFS_USER=$(config_get rustfs_root_user 'rustfsadmin')
+RUSTFS_PASS=$(config_get rustfs_root_password 'changeme')
+
 apply_manifest <<EOF
 apiVersion: v1
 kind: Secret
@@ -48,6 +51,12 @@ stringData:
   default-uri: "https://ninegate.${DOMAIN}"
   oidc-issuer: "https://dex.${DOMAIN}"
   oidc-redirect-uri: "https://ninegate.${DOMAIN}/callback"
+  storage-dsn: "s3://ninegate-uploads"
+  s3-endpoint: "http://rustfs:9000"
+  s3-bucket: "ninegate-uploads"
+  s3-access-key: "${RUSTFS_USER}"
+  s3-secret-key: "${RUSTFS_PASS}"
+  s3-region: "us-east-1"
 EOF
 ok "ninegate secret"
 

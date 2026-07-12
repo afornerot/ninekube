@@ -92,6 +92,38 @@ spec:
               value: "email"
             - name: OIDC_USERNAMEATTRIBUTE
               value: "name"
+            - name: STORAGE_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: ninegate-secret
+                  key: storage-dsn
+            - name: STORAGE_S3
+              value: "1"
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: ninegate-secret
+                  key: s3-endpoint
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: ninegate-secret
+                  key: s3-bucket
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ninegate-secret
+                  key: s3-access-key
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ninegate-secret
+                  key: s3-secret-key
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: ninegate-secret
+                  key: s3-region
           volumeMounts:
             - name: uploads
               mountPath: /app/uploads
