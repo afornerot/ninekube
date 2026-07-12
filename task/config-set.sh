@@ -47,10 +47,10 @@ config_set pg_password "$PG_PASS"
 
 # ─── RUSTFS ──────────────────────────────────────────────────────────────────────
 section "RustFS (Object Storage)"
-RUSTFS_ROOT_USER=$(ask_value "RustFS root username (first setup only, stored permanently)" "$(config_get rustfs_root_user 'rustfsadmin')")
+RUSTFS_ROOT_USER=$(ask_value "RustFS root username" "$(config_get rustfs_root_user 'rustfsadmin')")
 config_set rustfs_root_user "$RUSTFS_ROOT_USER"
 
-RUSTFS_ROOT_PASS=$(ask_value_constrained "RustFS root password (first setup only, stored permanently)" "$(config_get rustfs_root_password 'changeme')" 8 40)
+RUSTFS_ROOT_PASS=$(ask_value_constrained "RustFS root password" "$(config_get rustfs_root_password 'changeme')" 8 40)
 config_set rustfs_root_password "$RUSTFS_ROOT_PASS"
 
 # ─── GENERATE KUSTOMIZE .env ────────────────────────────────────────────────────
