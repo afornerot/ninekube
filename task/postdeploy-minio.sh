@@ -18,7 +18,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-header "APPLY MINIO"
+header "POSTDEPLOY MINIO"
 
 # ─── WAIT FOR MINIO ─────────────────────────────────────────────────────────────
 info "waiting for minio pod..."
@@ -30,7 +30,7 @@ ok "minio: pod running"
 
 # ─── PORT-FORWARD ───────────────────────────────────────────────────────────────
 info "starting port-forward to minio API..."
-kubectl port-forward -n nine "svc/${PREFIX}-minio" "${PF_PORT}:9000" &>/dev/null &
+kubectl port-forward -n nine "svc/minio" "${PF_PORT}:9000" &>/dev/null &
 PF_PID=$!
 sleep 2
 
@@ -61,4 +61,4 @@ info "attaching consoleAdmin policy..."
 /tmp/mc admin policy attach ninekube consoleAdmin --user "$MINIO_ADMIN_USER" 2>&1 | indent
 ok "minio policy: consoleAdmin attached to ${MINIO_ADMIN_USER}"
 
-done_ok "minio admin configured"
+done_ok "minio configured"

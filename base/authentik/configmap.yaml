@@ -16,5 +16,3 @@ data:
   AUTHENTIK_FOOTER: '<a href="https://nine.local">Ninekube</a>'
   AUTHENTIK_DEFAULT_USER_CHANGE_EMAIL: "true"
   AUTHENTIK_DEFAULT_USER_CHANGE_USERNAME: "true"
-  AUTHENTIK_BOOTSTRAP_PASSWORD: "changeme"
-  AUTHENTIK_BOOTSTRAP_EMAIL: "admin@nine.local"

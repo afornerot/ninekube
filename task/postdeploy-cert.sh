@@ -1,0 +1,51 @@
+#!/bin/bash
+source "$(dirname "$0")/helpers.sh"
+
+DOMAIN=$(config_get domain 'nine.local')
+
+header "POSTDEPLOY CERT"
+
+# ─── PATCH INGRESSES WITH DOMAIN + ISSUER ──────────────────────────────────────
+section "Ingresses"
+info "updating ingresses with domain ${DOMAIN}..."
+
+CERT_TYPE=$(config_get cert_type 'self-signed')
+if [ "$CERT_TYPE" = "self-signed" ]; then
+  ISSUER="selfsigned-issuer"
+else
+  ISSUER="$CERT_TYPE"
+fi
+
+INGRESSES="dex minio ninegate"
+HOSTS="dex.${DOMAIN} minio.${DOMAIN} ninegate.${DOMAIN}"
+
+for service_dir in "${NINEKUBE_DIR}/services"/*/; do
+  [ ! -d "$service_dir" ] && continue
+  service=$(basename "$service_dir")
+  if [ -L "${BASE_DIR}/${service}" ]; then
+    INGRESSES="${INGRESSES} ${service}"
+    HOSTS="${HOSTS} ${service}.${DOMAIN}"
+  fi
+done
+
+for INGRESS in $INGRESSES; do
+  kubectl patch ingress "$INGRESS" -n nine --type='json' -p "[
+    {\"op\": \"replace\", \"path\": \"/spec/rules/0/host\", \"value\": \"${INGRESS}.${DOMAIN}\"},
+    {\"op\": \"replace\", \"path\": \"/spec/tls/0/hosts/0\", \"value\": \"${INGRESS}.${DOMAIN}\"},
+    {\"op\": \"replace\", \"path\": \"/metadata/annotations/cert-manager.io~1cluster-issuer\", \"value\": \"${ISSUER}\"}
+  ]" 2>&1 | indent
+  ok "ingress ${INGRESS}: ${INGRESS}.${DOMAIN}"
+done
+
+# ─── CERTIFICATES ──────────────────────────────────────────────────────────────
+section "Certificates"
+info "waiting for certificates..."
+sleep 5
+kubectl get certificate -n nine 2>/dev/null | indent
+
+hint "add to /etc/hosts:"
+for host in $HOSTS; do
+  hint "  $(hostname -I | awk '{print $1}') ${host}"
+done
+
+done_ok "cert applied"

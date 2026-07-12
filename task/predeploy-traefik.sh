@@ -1,7 +1,7 @@
 #!/bin/bash
 source "$(dirname "$0")/helpers.sh"
 
-header "TRAEFIK HTTP->HTTPS"
+header "PREDEPLOY TRAEFIK"
 
 CURRENT_ARGS=$(kubectl get deployment traefik -n kube-system -o jsonpath='{.spec.template.spec.containers[0].args}' 2>/dev/null)
 
@@ -18,3 +18,5 @@ else
   kubectl rollout status deployment/traefik -n kube-system --timeout=60s 2>&1 | indent
   ok "Traefik HTTP->HTTPS redirect configured"
 fi
+
+done_ok "traefik predeploy"

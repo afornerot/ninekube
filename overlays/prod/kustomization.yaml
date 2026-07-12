@@ -4,19 +4,17 @@ kind: Kustomization
 resources:
   - ../../base
 
-namePrefix: prod-
-
 patches:
   - target:
       kind: Deployment
-      name: authentik-server
+      name: dex
     patch: |
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/cpu
         value: 200m
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/memory
-        value: 512Mi
+        value: 256Mi
   - target:
       kind: PersistentVolumeClaim
       name: minio-data
@@ -24,13 +22,3 @@ patches:
       - op: replace
         path: /spec/resources/requests/storage
         value: 50Gi
-  - target:
-      kind: ConfigMap
-      name: authentik-config
-    patch: |
-      - op: replace
-        path: /data/AUTHENTIK_POSTGRESQL__HOST
-        value: prod-postgres
-      - op: replace
-        path: /data/AUTHENTIK_REDIS__HOST
-        value: prod-redis

@@ -26,53 +26,68 @@ tasks:
     cmds:
       - bash task/uninstall.sh
 
-  apply-config:
+  config-set:
     desc: Configure secrets and kubeconfig
     silent: true
     cmds:
-      - bash task/apply-config.sh
+      - bash task/config-set.sh
 
-  apply-secrets:
-    desc: Apply secrets to the cluster
+  deploy:
+    desc: Deploy dev overlay via kustomize
     silent: true
     vars:
       ENV: '{{.ENV | default "dev"}}'
     cmds:
-      - bash task/apply-secrets.sh {{.ENV}}
+      - bash task/deploy.sh {{.ENV}}
 
-  apply-cert:
-    desc: Setup TLS certificates
+  service-predeploy:
+    desc: Pre-deploy a service (namespaces, secrets, configmaps)
     silent: true
     vars:
+      SERVICE: '{{.SERVICE}}'
       ENV: '{{.ENV | default "dev"}}'
     cmds:
-      - bash task/apply-cert.sh {{.ENV}}
+      - bash task/predeploy-{{.SERVICE}}.sh {{.ENV}}
 
-  apply-authentik:
-    desc: Configure Authentik (LDAP, admin, outpost)
-    silent: true
-    cmds:
-      - bash task/apply-authentik.sh
-
-  apply-minio:
-    desc: Create/update MinIO admin user via mc
+  service-postdeploy:
+    desc: Post-deploy a service (DNS, OIDC, ingress, etc.)
     silent: true
     vars:
+      SERVICE: '{{.SERVICE}}'
       ENV: '{{.ENV | default "dev"}}'
     cmds:
-      - bash task/apply-minio.sh {{.ENV}}
+      - bash task/postdeploy-{{.SERVICE}}.sh {{.ENV}}
 
-  deploy-dev:
-    desc: Deploy dev overlay
+  service-deploy:
+    desc: Full deploy pipeline for a service (predeploy + deploy + postdeploy)
+    silent: true
+    vars:
+      SERVICE: '{{.SERVICE}}'
+      ENV: '{{.ENV | default "dev"}}'
+    cmds:
+      - bash task/service-deploy.sh {{.SERVICE}} {{.ENV}}
+
+  service-list:
+    desc: List available services and their status
     silent: true
     cmds:
-      - bash task/deploy.sh dev
+      - bash task/service-list.sh
 
-  deploy-prod:
-    desc: Deploy prod overlay
+  service-enable:
+    desc: Enable a service (symlink + kustomize)
     silent: true
+    vars:
+      SERVICE: '{{.SERVICE}}'
     cmds:
-      - bash task/deploy.sh prod
+      - bash task/service-enable.sh {{.SERVICE}}
+
+  service-disable:
+    desc: Disable a service
+    silent: true
+    vars:
+      SERVICE: '{{.SERVICE}}'
+    cmds:
+      - bash task/service-disable.sh {{.SERVICE}}
 
   delete-dev:
     desc: Delete dev overlay
@@ -97,46 +112,6 @@ tasks:
     silent: true
     cmds:
       - bash task/logs.sh
-
-  service-list:
-    desc: List available services and their status
-    silent: true
-    cmds:
-      - bash task/service-list.sh
-
-  service-enable:
-    desc: Enable a service (symlink + kustomize)
-    silent: true
-    vars:
-      SERVICE: '{{.SERVICE}}'
-    cmds:
-      - bash task/service-enable.sh {{.SERVICE}}
-
-  service-deploy:
-    desc: Deploy a service (kustomize + apply)
-    silent: true
-    vars:
-      SERVICE: '{{.SERVICE}}'
-      ENV: '{{.ENV | default "dev"}}'
-    cmds:
-      - bash task/service-deploy.sh {{.SERVICE}} {{.ENV}}
-
-  service-disable:
-    desc: Disable a service
-    silent: true
-    vars:
-      SERVICE: '{{.SERVICE}}'
-    cmds:
-      - bash task/service-disable.sh {{.SERVICE}}
-
-  service-apply:
-    desc: Run apply script for a service
-    silent: true
-    vars:
-      SERVICE: '{{.SERVICE}}'
-      ENV: '{{.ENV | default "dev"}}'
-    cmds:
-      - bash task/apply-{{.SERVICE}}.sh {{.ENV}}
 
   backup:
     desc: Backup PVC data and/or databases for a service (or all)

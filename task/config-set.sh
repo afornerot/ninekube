@@ -1,7 +1,7 @@
 #!/bin/bash
 source "$(dirname "$0")/helpers.sh"
 
-header "APPLY CONFIG"
+header "CONFIG SET"
 
 # ─── KUBECONFIG ─────────────────────────────────────────────────────────────────
 if [ -f /etc/rancher/k3s/k3s.yaml ]; then
@@ -34,18 +34,11 @@ section "Cluster Admin"
 ADMIN_USER=$(ask_value "Admin username" "$(config_get admin_username 'admin')")
 config_set admin_username "$ADMIN_USER"
 
+ADMIN_EMAIL=$(ask_value "Admin email" "$(config_get admin_email "admin@${DOMAIN}")")
+config_set admin_email "$ADMIN_EMAIL"
+
 ADMIN_PASS=$(ask_value_constrained "Admin password" "$(config_get admin_password 'changeme')" 8 40)
 config_set admin_password "$ADMIN_PASS"
-
-# ─── AUTHENTIK ───────────────────────────────────────────────────────────────────
-section "Authentik (SSO)"
-AK_SECRET_KEY=$(ask_value "Authentik secret key" "$(config_get authentik_secret_key 'changeme')")
-config_set authentik_secret_key "$AK_SECRET_KEY"
-
-# ─── LDAP ────────────────────────────────────────────────────────────────────────
-section "LDAP Service"
-LDAP_PASS=$(ask_value "LDAP service password" "$(config_get ldap_password 'ldapservice-password')")
-config_set ldap_password "$LDAP_PASS"
 
 # ─── POSTGRES ────────────────────────────────────────────────────────────────────
 section "PostgreSQL"
@@ -62,23 +55,16 @@ config_set minio_root_password "$MINIO_ROOT_PASS"
 
 # ─── GENERATE KUSTOMIZE .env ────────────────────────────────────────────────────
 section "Kustomize .env"
-LDAP_DC=$(echo "${DOMAIN}" | tr '.' ',DC=')
+LDAP_BASE_DN="dc=$(echo "${DOMAIN}" | sed 's/\./,dc=/g')"
 
 cat > "${NINEKUBE_DIR}/base/.env" <<EOF
 DOMAIN=${DOMAIN}
-AUTHENTIK_URL=https://authentik.${DOMAIN}
-AUTHENTIK_HOST=authentik.${DOMAIN}
 MINIO_HOST=minio.${DOMAIN}
-LDAP_HOST=authentik.${DOMAIN}
-LDAP_PORT=389
-LDAP_BASE_DN=DC=ldap,DC=${LDAP_DC}
-LDAP_BIND_DN=cn=ldapservice,ou=users,DC=ldap,DC=${LDAP_DC}
-AUTHENTIK_FOOTER=<a href="https://${DOMAIN}">Ninekube</a>
-AUTHENTIK_BOOTSTRAP_EMAIL=${ADMIN_USER}@${DOMAIN}
+ADMIN_EMAIL=${ADMIN_EMAIL}
 CLUSTER_EMAIL=${EMAIL}
 EOF
 ok "base/.env generated"
 
 # ─── DONE ────────────────────────────────────────────────────────────────────────
 hint "File: ${CONFIG_FILE}"
-done_ok "config applied"
+done_ok "config set"

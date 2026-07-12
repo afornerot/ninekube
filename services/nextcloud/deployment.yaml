@@ -31,25 +31,25 @@ spec:
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: dev-postgres-secret
+                  name: postgres-secret
                   key: username
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: dev-postgres-secret
+                  name: postgres-secret
                   key: password
             - name: REDIS_HOST
               value: "dev-redis"
             - name: NEXTCLOUD_ADMIN_USER
               valueFrom:
                 secretKeyRef:
-                  name: dev-nine-secrets
+                  name: nine-secrets
                   key: admin_username
                   optional: true
             - name: NEXTCLOUD_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: dev-nine-secrets
+                  name: nine-secrets
                   key: admin_password
                   optional: true
             - name: NEXTCLOUD_TRUSTED_DOMAINS

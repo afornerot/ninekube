@@ -41,6 +41,27 @@ done_ko()   { echo ""; echo -e "  ${RED}${BOLD}FAILED${NC} ${RED}— $1${NC}"; e
 
 indent() { sed 's/^/    /'; }
 
+# ─── MANIFEST HELPERS ──────────────────────────────────────────────────────────
+# Apply a manifest from stdin heredoc. Usage:
+#   apply_manifest <<EOF
+#   apiVersion: v1
+#   kind: ConfigMap
+#   ...
+#   EOF
+apply_manifest() {
+  local tmpfile
+  tmpfile=$(mktemp --suffix=.yaml)
+  cat > "$tmpfile"
+  kubectl apply -f "$tmpfile" 2>&1 | indent
+  rm -f "$tmpfile"
+}
+
+# Ensure namespace exists
+ensure_namespace() {
+  local ns="${1:-nine}"
+  kubectl create namespace "$ns" --dry-run=client -o yaml 2>&1 | kubectl apply -f - 2>&1 | indent
+}
+
 # ─── PROJECT PATHS ───────────────────────────────────────────────────────────────
 NINEKUBE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BASE_DIR="${NINEKUBE_DIR}/base"
@@ -214,28 +235,53 @@ EOF
   return 0  # changed
 }
 
+# Generate enabled-services/kustomization.yaml from symlinks
+generate_enabled_kustomization() {
+  local enabled_dir="${BASE_DIR}/enabled-services"
+  mkdir -p "${enabled_dir}"
+  local kust_file="${enabled_dir}/kustomization.yaml"
+
+  local services=()
+  for link in "${enabled_dir}"/*/; do
+    [ -L "${link%/}" ] || continue
+    services+=("$(basename "${link%/}")")
+  done
+
+  cat > "${kust_file}" <<EOF
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+EOF
+
+  if [ ${#services[@]} -eq 0 ]; then
+    cat > "${enabled_dir}/noop.yaml" <<NOOP
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: enabled-services-state
+  namespace: nine
+data: {}
+NOOP
+    echo "  - noop.yaml" >> "${kust_file}"
+  else
+    rm -f "${enabled_dir}/noop.yaml"
+    for svc in "${services[@]}"; do
+      echo "  - ${svc}" >> "${kust_file}"
+    done
+  fi
+}
+
 # Generate base/.env from .ninekube/config.yaml (called before kustomize builds)
 generate_env() {
   local domain
   domain=$(config_get domain 'nine.local')
-  local admin_user
-  admin_user=$(config_get admin_username 'admin')
   local email
   email=$(config_get email "admin@${domain}")
-  local ldap_dc
-  ldap_dc=$(echo "${domain}" | tr '.' ',DC=')
 
   cat > "${BASE_DIR}/.env" <<EOF
 DOMAIN=${domain}
-AUTHENTIK_URL=https://authentik.${domain}
-AUTHENTIK_HOST=authentik.${domain}
 MINIO_HOST=minio.${domain}
-LDAP_HOST=authentik.${domain}
-LDAP_PORT=389
-LDAP_BASE_DN=DC=ldap,DC=${ldap_dc}
-LDAP_BIND_DN=cn=ldapservice,ou=users,DC=ldap,DC=${ldap_dc}
-AUTHENTIK_FOOTER=<a href="https://${domain}">Ninekube</a>
-AUTHENTIK_BOOTSTRAP_EMAIL=${admin_user}@${domain}
 CLUSTER_EMAIL=${email}
 EOF
 }

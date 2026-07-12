@@ -46,7 +46,7 @@ spec:
               containerPort: 5432
           env:
             - name: POSTGRES_DB
-              value: authentik
+              value: ninekube
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
@@ -71,7 +71,7 @@ spec:
               command:
                 - pg_isready
                 - -U
-                - authentik
+                - ninekube
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
@@ -79,7 +79,7 @@ spec:
               command:
                 - pg_isready
                 - -U
-                - authentik
+                - ninekube
             initialDelaySeconds: 5
             periodSeconds: 5
   volumeClaimTemplates:

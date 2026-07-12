@@ -8,7 +8,6 @@ metadata:
     app.kubernetes.io/part-of: ninekube
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    traefik.ingress.kubernetes.io/router.middlewares: kube-system-authentik-forwardauth@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:

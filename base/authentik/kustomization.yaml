@@ -6,5 +6,4 @@ resources:
   - worker.yaml
   - service.yaml
   - ingress.yaml
-  - secret.yaml
   - configmap.yaml

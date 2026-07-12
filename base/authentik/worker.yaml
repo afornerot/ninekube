@@ -32,6 +32,8 @@ spec:
           volumeMounts:
             - name: media
               mountPath: /media
+            - name: blueprints
+              mountPath: /blueprints/custom
           resources:
             requests:
               cpu: 100m
@@ -39,3 +41,6 @@ spec:
       volumes:
         - name: media
           emptyDir: {}
+        - name: blueprints
+          configMap:
+            name: ninekube-authentik-blueprint

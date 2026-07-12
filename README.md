@@ -17,12 +17,14 @@ task setup
 | `task setup` | Full cluster setup |
 | `task install` | Install prerequisites (curl, kubectl, k3s, k9s, task) |
 | `task uninstall` | Uninstall k3s cluster |
-| `task apply-config` | Configure secrets and kubeconfig |
-| `task apply-secrets` | Apply secrets to the cluster |
-| `task apply-cert` | Setup TLS certificates |
-| `task apply-authentik` | Configure Authentik (LDAP, admin, outpost) |
-| `task deploy-dev` | Deploy dev overlay |
-| `task deploy-prod` | Deploy prod overlay |
+| `task config-set` | Configure secrets and kubeconfig |
+| `task deploy ENV=dev` | Deploy overlay via kustomize |
+| `task service-predeploy SERVICE=authentik ENV=dev` | Pre-deploy service (secrets, configmaps) |
+| `task service-postdeploy SERVICE=authentik ENV=dev` | Post-deploy service (DNS, OIDC, ingress) |
+| `task service-deploy SERVICE=authentik ENV=dev` | Full deploy pipeline for a service |
+| `task service-list` | List available services and their status |
+| `task service-enable SERVICE=nextcloud` | Enable a service (symlink + kustomize) |
+| `task service-disable SERVICE=nextcloud` | Disable a service |
 | `task delete-dev` | Delete dev overlay |
 | `task delete-prod` | Delete prod overlay |
 | `task status` | Show cluster status |
@@ -49,21 +51,15 @@ k3s (single-node)
 ```
 base/                     →  defaults (committed to git)
     ↓
-task apply-config         →  prompts for secrets
+task config-set           →  prompts for secrets
     ↓
 .ninekube/config.yaml     →  overrides (gitignored)
-    ↓
-task apply-secrets        →  patches cluster resources
 ```
 
-Shared via `nine-config` ConfigMap and `nine-secrets` Secret:
-
-```yaml
-envFrom:
-  - configMapRef:
-      name: nine-config
-  - secretRef:
-      name: nine-secrets
+Services are managed via symlinks in `base/enabled-services/`:
+```bash
+task service-enable SERVICE=nextcloud   # adds symlink + regenerates kustomization
+task service-disable SERVICE=nextcloud  # removes symlink
 ```
 
 ## Credentials
@@ -75,13 +71,6 @@ After `task setup`, all credentials are in `.ninekube/config.yaml`:
 | Authentik | `admin` | SSO + admin UI |
 | MinIO | `admin` | Same as Authentik |
 | LDAP | `ldapservice` | Service account |
-
-## Adding Applications
-
-1. Create manifests in `base/your-app/`
-2. Add to `base/kustomization.yaml`
-3. Add overlay patches in `overlays/dev/` or `overlays/prod/`
-4. Deploy with `task deploy-dev`
 
 ## Troubleshooting
 

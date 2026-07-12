@@ -1,10 +1,10 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: tinyfilemanager
+  name: ninegate
   namespace: nine
   labels:
-    app.kubernetes.io/name: tinyfilemanager
+    app.kubernetes.io/name: ninegate
     app.kubernetes.io/part-of: ninekube
   annotations:
     cert-manager.io/cluster-issuer: ""
@@ -12,16 +12,16 @@ spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - files.nine.local
-      secretName: tinyfilemanager-tls
+        - ninegate.nine.local
+      secretName: ninegate-tls
   rules:
-    - host: files.nine.local
+    - host: ninegate.nine.local
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: tinyfilemanager
+                name: ninegate
                 port:
                   number: 80

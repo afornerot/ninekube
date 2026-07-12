@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/name: tinyfilemanager
     app.kubernetes.io/part-of: ninekube
 data:
-  tinyfilemanager.php: |
+  index.php: |
     <?php
     // Tiny File Manager Configuration
     // Docs: https://github.com/prasathmani/tinyfilemanager

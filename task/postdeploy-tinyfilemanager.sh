@@ -1,13 +1,12 @@
 #!/bin/bash
 source "$(dirname "$0")/helpers.sh"
 
-ENV="${1:-dev}"
 NAMESPACE="nine"
 SERVICE_NAME="tinyfilemanager"
 IMAGE="tinyfilemanager/tinyfilemanager:latest"
 DOMAIN=$(config_get domain 'nine.local')
 
-header "APPLY TINYFILEMANAGER"
+header "POSTDEPLOY TINYFILEMANAGER"
 
 # ─── DETECT DEPLOYMENT NAME ────────────────────────────────────────────────
 DEPLOY_NAME=$(k8s_detect_deploy "$NAMESPACE" "$SERVICE_NAME")
@@ -17,7 +16,7 @@ if [ -z "$DEPLOY_NAME" ]; then
 fi
 info "detected deployment: ${DEPLOY_NAME}"
 
-# Read the configmap name from the deployment spec (kustomize may or may not rename it)
+# Read the configmap name from the deployment spec
 CONFIGMAP_NAME=$(kubectl get deploy "$DEPLOY_NAME" -n ${NAMESPACE} \
   -o jsonpath='{.spec.template.spec.volumes[?(@.name=="config")].configMap.name}' 2>/dev/null)
 if [ -z "$CONFIGMAP_NAME" ]; then
@@ -89,4 +88,4 @@ fi
 # ─── CLEANUP ────────────────────────────────────────────────────────────────
 rm -rf "${TMPDIR}"
 
-done_ok "tinyfilemanager configured — access at https://files.${DOMAIN}"
+done_ok "tinyfilemanager configured — access at https://tinyfilemanager.${DOMAIN}"

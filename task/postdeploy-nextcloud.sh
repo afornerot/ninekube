@@ -1,15 +1,28 @@
 #!/bin/bash
 source "$(dirname "$0")/helpers.sh"
 
-ENV="${1:-dev}"
 NAMESPACE="nine"
 SERVICE_NAME="nextcloud"
 DOMAIN=$(config_get domain 'nine.local')
-LDAP_PASS=$(config_get ldap_password 'ldapservice-password')
-LDAP_BASE_DN=$(config_get ldap_base_dn 'DC=ldap,DC=nine,DC=local')
-LDAP_HOST=$(config_get ldap_host "authentik.${DOMAIN}")
+NEXTCLOUD_CLIENT_SECRET=$(config_get dex_nextcloud_client_secret '')
 
-header "APPLY NEXTCLOUD"
+header "POSTDEPLOY NEXTCLOUD"
+
+# ─── ENSURE NEXTCLOUD DATABASE EXISTS ────────────────────────────────────────
+section "Database"
+PG_POD=$(k8s_pod "$NAMESPACE" "app.kubernetes.io/name=postgres")
+if [ -n "$PG_POD" ]; then
+  DB_EXISTS=$(kubectl exec -n "$NAMESPACE" "$PG_POD" -- \
+    psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='nextcloud'" 2>/dev/null || echo "")
+  if [ "$DB_EXISTS" != "1" ]; then
+    info "creating nextcloud database..."
+    kubectl exec -n "$NAMESPACE" "$PG_POD" -- \
+      psql -U postgres -c "CREATE DATABASE nextcloud;" 2>&1 | indent
+    ok "nextcloud database created"
+  else
+    dim "nextcloud database: already exists"
+  fi
+fi
 
 # ─── DETECT DEPLOYMENT NAME ────────────────────────────────────────────────
 DEPLOY_NAME=$(k8s_detect_deploy "$NAMESPACE" "$SERVICE_NAME")
@@ -40,7 +53,7 @@ fi
 # ─── INSTALL PLUGINS ────────────────────────────────────────────────────────
 section "Plugins"
 
-for plugin in calendar user_ldap oidc_login; do
+for plugin in calendar oidc_login; do
   if k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ app:list 2>/dev/null | grep -q "$plugin"; then
     dim "${plugin}: already installed"
   else
@@ -50,36 +63,6 @@ for plugin in calendar user_ldap oidc_login; do
   fi
 done
 
-# ─── CONFIGURE LDAP ─────────────────────────────────────────────────────────
-section "LDAP Configuration"
-
-LDAP_CONFIGURED=$(k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ ldap:show-config 2>/dev/null | grep -c "Server" || echo "0")
-if [ "$LDAP_CONFIGURED" -gt 0 ]; then
-  dim "LDAP: already configured"
-else
-  info "configuring LDAP connection..."
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ ldap:create-empty-config 2>&1 | indent
-
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ ldap:set-config "s01" ldap_host "${LDAP_HOST}" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ ldap:set-config "s01" ldap_port 389 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ ldap:set-config "s01" ldap_base "${LDAP_BASE_DN}" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ ldap:set-config "s01" ldap_dn "cn=ldapservice,ou=users,${LDAP_BASE_DN}" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ ldap:set-config "s01" ldap_agent_password "${LDAP_PASS}" 2>&1 | indent
-
-  LDAP_USERS_BASE="ou=users,${LDAP_BASE_DN}"
-  LDAP_GROUPS_BASE="ou=groups,${LDAP_BASE_DN}"
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ ldap:set-config "s01" ldap_base_users "${LDAP_USERS_BASE}" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ ldap:set-config "s01" ldap_base_groups "${LDAP_GROUPS_BASE}" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ ldap:set-config "s01" ldap_user_filter_objectclass "inetOrgPerson" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ ldap:set-config "s01" ldap_group_filter_objectclass "groupOfNames" 2>&1 | indent
-
-  if k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ ldap:test-config "s01" 2>&1 | grep -q "success"; then
-    ok "LDAP: connection successful"
-  else
-    warn "LDAP: connection test failed (may need manual configuration)"
-  fi
-fi
-
 # ─── CONFIGURE OIDC ─────────────────────────────────────────────────────────
 section "OIDC Configuration"
 
@@ -87,13 +70,15 @@ OIDC_CONFIGURED=$(k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:ge
 if [ "$OIDC_CONFIGURED" -gt 0 ]; then
   dim "OIDC: already configured"
 else
-  info "configuring OIDC login..."
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login provider-url --value="https://authentik.${DOMAIN}/application/o/nextcloud/" 2>&1 | indent
+  info "configuring OIDC login with Dex..."
+
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login provider-url --value="https://dex.${DOMAIN}" 2>&1 | indent
   k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login client-id --value="nextcloud" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login client-secret --value="nextcloud-secret" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login client-secret --value="${NEXTCLOUD_CLIENT_SECRET}" 2>&1 | indent
   k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login redirect-url --value="https://cloud.${DOMAIN}/index.php/login/via oidc_login/" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login discovery-url --value="https://authentik.${DOMAIN}/application/o/nextcloud/.well-known/openid-configuration" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login discovery-url --value="https://dex.${DOMAIN}/.well-known/openid-configuration" 2>&1 | indent
   k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login auto-provision --value="1" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login uid_key --value="sub" 2>&1 | indent
   ok "OIDC: configured"
 fi
 
