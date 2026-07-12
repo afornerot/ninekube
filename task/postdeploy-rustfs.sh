@@ -55,4 +55,25 @@ info "creating ninegate-uploads bucket..."
 /tmp/mc mb ninekube/ninegate-uploads 2>/dev/null || true
 ok "bucket: ninegate-uploads"
 
+# ─── VERIFY BUCKET IS ACCESSIBLE FROM CLUSTER ────────────────────────────────
+info "verifying bucket is accessible from cluster..."
+kubectl -n nine exec deployment/ninegate -- php -r "
+require '/app/vendor/autoload.php';
+\$client = new \Aws\S3\S3Client([
+    'version' => 'latest',
+    'region' => 'us-east-1',
+    'endpoint' => 'http://rustfs:9000',
+    'use_path_style_endpoint' => true,
+    'credentials' => ['key' => '${RUSTFS_ROOT_USER}', 'secret' => '${RUSTFS_ROOT_PASS}'],
+]);
+try {
+    \$client->headBucket(['Bucket' => 'ninegate-uploads']);
+    echo 'OK' . PHP_EOL;
+} catch (\Exception \$e) {
+    echo 'ERROR: ' . \$e->getMessage() . PHP_EOL;
+    exit(1);
+}
+" 2>&1 | indent
+ok "bucket: accessible from cluster"
+
 done_ok "rustfs configured"
