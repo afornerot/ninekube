@@ -50,4 +50,9 @@ if ! /tmp/mc ls ninekube/ &>/dev/null; then
 fi
 ok "rustfs: connected with root credentials"
 
+# ─── CREATE BUCKETS ──────────────────────────────────────────────────────────
+info "creating ninegate-uploads bucket..."
+/tmp/mc mb ninekube/ninegate-uploads 2>/dev/null || true
+ok "bucket: ninegate-uploads"
+
 done_ok "rustfs configured"
