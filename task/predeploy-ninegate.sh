@@ -9,14 +9,6 @@ PG_PASS=$(config_get pg_password 'changeme')
 
 header "PREDEPLOY NINEGATE"
 
-# --- CREATE NINEGATE DATABASE ---
-info "ensuring ninegate database exists in PostgreSQL..."
-kubectl -n nine exec statefulset/postgres -- \
-  psql -U "${PG_USER}" -tc "SELECT 1 FROM pg_database WHERE datname='ninegate'" | grep -q 1 || \
-  kubectl -n nine exec statefulset/postgres -- \
-  psql -U "${PG_USER}" -c "CREATE DATABASE ninegate"
-ok "ninegate database"
-
 # --- NINEGATE SECRET ---
 info "creating ninegate secret..."
 NINEGATE_APP_SECRET=$(config_get ninegate_app_secret '')
