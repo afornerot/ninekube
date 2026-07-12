@@ -281,7 +281,7 @@ generate_env() {
 
   cat > "${BASE_DIR}/.env" <<EOF
 DOMAIN=${domain}
-MINIO_HOST=minio.${domain}
+MINIO_HOST=rustfs.${domain}
 CLUSTER_EMAIL=${email}
 EOF
 }

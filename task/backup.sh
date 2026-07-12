@@ -5,7 +5,7 @@ SERVICE="${1:-}"
 BACKUP_PVC="${BACKUP_PVC:-}"
 BACKUP_DB="${BACKUP_DB:-}"
 BACKUP_BASE="${NINEKUBE_DIR}/backups"
-PG_USER=$(config_get postgres_username 'authentik')
+PG_USER=$(config_get postgres_username 'postgres')
 PG_PASS=$(config_get postgres_password 'changeme')
 
 # Default: backup both if no flag specified

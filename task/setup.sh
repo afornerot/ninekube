@@ -21,7 +21,7 @@ bash "$(dirname "$0")/predeploy-shared.sh" "$ENV"
 bash "$(dirname "$0")/predeploy-postgres.sh" "$ENV"
 bash "$(dirname "$0")/predeploy-ninegate.sh" "$ENV"
 bash "$(dirname "$0")/predeploy-dex.sh" "$ENV"
-bash "$(dirname "$0")/predeploy-minio.sh" "$ENV"
+bash "$(dirname "$0")/predeploy-rustfs.sh" "$ENV"
 
 # ─── PREDEPLOY ENABLED SERVICES ─────────────────────────────────────────────────
 for service_dir in "${NINEKUBE_DIR}/services"/*/; do
@@ -46,8 +46,8 @@ bash "$(dirname "$0")/deploy.sh" "$ENV"
 # ─── POSTDEPLOY CERT (Ingress patching) ────────────────────────────────────────
 bash "$(dirname "$0")/postdeploy-cert.sh" "$ENV"
 
-# ─── POSTDEPLOY MINIO ───────────────────────────────────────────────────────────
-bash "$(dirname "$0")/postdeploy-minio.sh" "$ENV"
+# ─── POSTDEPLOY RUSTFS ─────────────────────────────────────────────────────────
+bash "$(dirname "$0")/postdeploy-rustfs.sh" "$ENV"
 
 # ─── POSTDEPLOY NINEGATE ───────────────────────────────────────────────────────
 bash "$(dirname "$0")/postdeploy-ninegate.sh" "$ENV"
@@ -75,7 +75,7 @@ section "Access"
 DOMAIN=$(config_get domain 'nine.local')
 ADMIN_USER=$(config_get admin_username 'admin')
 hint "Add to /etc/hosts:"
-hint "  $(hostname -I | awk '{print $1}') ninegate.${DOMAIN} dex.${DOMAIN} minio.${DOMAIN} glauth.${DOMAIN}"
+hint "  $(hostname -I | awk '{print $1}') ninegate.${DOMAIN} dex.${DOMAIN} rustfs.${DOMAIN} glauth.${DOMAIN}"
 hint ""
 hint "Glauth LDAPS: ldaps://glauth.${DOMAIN}:30636"
 section "Credentials"

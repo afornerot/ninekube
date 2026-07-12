@@ -7,21 +7,15 @@ fi
 
 header "UNINSTALL"
 
-PG_USER=$(config_get postgres_username 'authentik')
+PG_USER=$(config_get postgres_username 'postgres')
 
 # ─── LIST CORE COMPONENTS ─────────────────────────────────────────────────────
 section "Core components that will be deleted:"
 
-# MinIO
-minio_pvcs=$(kubectl get pvc -n nine -l "app.kubernetes.io/name=minio" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
-bold "  minio"
-[ -n "$minio_pvcs" ] && dim "    PVCs: ${minio_pvcs}"
-
-# Authentik (has database)
-authentik_db=$(kubectl exec -n nine dev-postgres-0 -- psql -U "$PG_USER" -tAc \
-  "SELECT 1 FROM pg_database WHERE datname='authentik'" 2>/dev/null | tr -d '[:space:]')
-bold "  authentik"
-[ "$authentik_db" = "1" ] && dim "    Database: authentik"
+# RustFS
+rustfs_pvcs=$(kubectl get pvc -n nine -l "app.kubernetes.io/name=rustfs" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
+bold "  rustfs"
+[ -n "$rustfs_pvcs" ] && dim "    PVCs: ${rustfs_pvcs}"
 
 # ─── LIST SERVICES ────────────────────────────────────────────────────────────
 section "Active services that will be deleted:"
@@ -50,12 +44,12 @@ if ! ask_yn "Uninstall k3s and delete all cluster data?"; then
   exit 0
 fi
 
-# ─── BACKUP PVCs (minio + services) ──────────────────────────────────────────
+# ─── BACKUP PVCs (rustfs + services) ──────────────────────────────────────────
 echo ""
 if ask_yn "Backup PVC data before uninstalling?"; then
-  # MinIO
-  if [ -n "$minio_pvcs" ]; then
-    BACKUP_PVC=true BACKUP_DB=false bash "$(dirname "$0")/backup.sh" "minio"
+  # RustFS
+  if [ -n "$rustfs_pvcs" ]; then
+    BACKUP_PVC=true BACKUP_DB=false bash "$(dirname "$0")/backup.sh" "rustfs"
   fi
   # Services
   for service_dir in "${NINEKUBE_DIR}/services"/*/; do
@@ -68,13 +62,9 @@ if ask_yn "Backup PVC data before uninstalling?"; then
   done
 fi
 
-# ─── BACKUP DATABASES (authentik + services) ──────────────────────────────────
+# ─── BACKUP DATABASES ─────────────────────────────────────────────────────────
 echo ""
 if ask_yn "Backup databases before uninstalling?"; then
-  # Authentik
-  if [ "$authentik_db" = "1" ]; then
-    BACKUP_PVC=false BACKUP_DB=true bash "$(dirname "$0")/backup.sh" "authentik"
-  fi
   # Services
   for service_dir in "${NINEKUBE_DIR}/services"/*/; do
     [ ! -d "$service_dir" ] && continue

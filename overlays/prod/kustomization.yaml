@@ -17,7 +17,7 @@ patches:
         value: 256Mi
   - target:
       kind: PersistentVolumeClaim
-      name: minio-data
+      name: rustfs-data
     patch: |
       - op: replace
         path: /spec/resources/requests/storage

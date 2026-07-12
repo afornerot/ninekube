@@ -4,8 +4,8 @@ source "$(dirname "$0")/helpers.sh"
 ENV="${1:-dev}"
 
 DOMAIN=$(config_get domain 'nine.local')
-MINIO_ROOT_USER=$(config_get minio_root_user 'minioroot')
-MINIO_ROOT_PASS=$(config_get minio_root_password 'changeme')
+RUSTFS_ROOT_USER=$(config_get rustfs_root_user 'rustfsadmin')
+RUSTFS_ROOT_PASS=$(config_get rustfs_root_password 'changeme')
 
 header "PREDEPLOY SHARED"
 
@@ -23,7 +23,7 @@ metadata:
   namespace: nine
 data:
   DOMAIN: "${DOMAIN}"
-  MINIO_HOST: "minio.${DOMAIN}"
+  MINIO_HOST: "rustfs.${DOMAIN}"
 EOF
   ok "shared configmap: patched"
 fi
@@ -38,8 +38,8 @@ metadata:
   namespace: nine
 type: Opaque
 stringData:
-  MINIO_ROOT_USER: "${MINIO_ROOT_USER}"
-  MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASS}"
+  MINIO_ROOT_USER: "${RUSTFS_ROOT_USER}"
+  MINIO_ROOT_PASSWORD: "${RUSTFS_ROOT_PASS}"
 EOF
 ok "shared secrets: patched"
 

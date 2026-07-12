@@ -45,13 +45,13 @@ section "PostgreSQL"
 PG_PASS=$(ask_value "PostgreSQL password" "$(config_get pg_password 'changeme')")
 config_set pg_password "$PG_PASS"
 
-# ─── MINIO ───────────────────────────────────────────────────────────────────────
-section "MinIO (Object Storage)"
-MINIO_ROOT_USER=$(ask_value "MinIO root username (first setup only, stored permanently)" "$(config_get minio_root_user 'minioroot')")
-config_set minio_root_user "$MINIO_ROOT_USER"
+# ─── RUSTFS ──────────────────────────────────────────────────────────────────────
+section "RustFS (Object Storage)"
+RUSTFS_ROOT_USER=$(ask_value "RustFS root username (first setup only, stored permanently)" "$(config_get rustfs_root_user 'rustfsadmin')")
+config_set rustfs_root_user "$RUSTFS_ROOT_USER"
 
-MINIO_ROOT_PASS=$(ask_value_constrained "MinIO root password (first setup only, stored permanently)" "$(config_get minio_root_password 'changeme')" 8 40)
-config_set minio_root_password "$MINIO_ROOT_PASS"
+RUSTFS_ROOT_PASS=$(ask_value_constrained "RustFS root password (first setup only, stored permanently)" "$(config_get rustfs_root_password 'changeme')" 8 40)
+config_set rustfs_root_password "$RUSTFS_ROOT_PASS"
 
 # ─── GENERATE KUSTOMIZE .env ────────────────────────────────────────────────────
 section "Kustomize .env"
@@ -59,7 +59,7 @@ LDAP_BASE_DN="dc=$(echo "${DOMAIN}" | sed 's/\./,dc=/g')"
 
 cat > "${NINEKUBE_DIR}/base/.env" <<EOF
 DOMAIN=${DOMAIN}
-MINIO_HOST=minio.${DOMAIN}
+MINIO_HOST=rustfs.${DOMAIN}
 ADMIN_EMAIL=${ADMIN_EMAIL}
 CLUSTER_EMAIL=${EMAIL}
 EOF

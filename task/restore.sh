@@ -3,7 +3,7 @@ source "$(dirname "$0")/helpers.sh"
 
 SERVICE="${1:-}"
 BACKUP_BASE="${NINEKUBE_DIR}/backups"
-PG_USER=$(config_get postgres_username 'authentik')
+PG_USER=$(config_get postgres_username 'postgres')
 
 restore_service() {
   local svc="$1"
@@ -167,7 +167,7 @@ else
   found=false
 
   # Core components
-  for component in minio authentik; do
+  for component in rustfs; do
     if [ -d "${BACKUP_BASE}/${component}" ]; then
       restore_service "$component"
       found=true

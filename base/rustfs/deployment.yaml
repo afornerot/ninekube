@@ -1,50 +1,63 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: minio
+  name: rustfs
   namespace: nine
   labels:
-    app.kubernetes.io/name: minio
+    app.kubernetes.io/name: rustfs
     app.kubernetes.io/part-of: ninekube
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
-      app.kubernetes.io/name: minio
+      app.kubernetes.io/name: rustfs
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: minio
+        app.kubernetes.io/name: rustfs
         app.kubernetes.io/part-of: ninekube
     spec:
       containers:
-        - name: minio
-          image: minio/minio:latest
+        - name: rustfs
+          image: rustfs/rustfs:latest
           command:
-            - minio
-            - server
+            - /usr/local/bin/rustfs
             - /data
-            - --console-address
-            - ":9001"
           ports:
             - name: api
               containerPort: 9000
             - name: console
               containerPort: 9001
           env:
-            - name: MINIO_ROOT_USER
+            - name: RUSTFS_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: minio-secret
+                  name: rustfs-secret
                   key: root-user
-            - name: MINIO_ROOT_PASSWORD
+            - name: RUSTFS_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: minio-secret
+                  name: rustfs-secret
                   key: root-password
+            - name: RUSTFS_CONSOLE_ENABLE
+              value: "true"
           volumeMounts:
             - name: data
               mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: api
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: api
+            initialDelaySeconds: 10
+            periodSeconds: 30
           resources:
             requests:
               cpu: 100m
@@ -52,4 +65,4 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: minio-data
+            claimName: rustfs-data

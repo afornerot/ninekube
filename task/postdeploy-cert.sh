@@ -16,8 +16,8 @@ else
   ISSUER="$CERT_TYPE"
 fi
 
-INGRESSES="dex minio ninegate"
-HOSTS="dex.${DOMAIN} minio.${DOMAIN} ninegate.${DOMAIN}"
+INGRESSES="dex rustfs ninegate"
+HOSTS="dex.${DOMAIN} rustfs.${DOMAIN} ninegate.${DOMAIN}"
 
 for service_dir in "${NINEKUBE_DIR}/services"/*/; do
   [ ! -d "$service_dir" ] && continue

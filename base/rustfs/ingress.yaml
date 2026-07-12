@@ -1,10 +1,10 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: minio
+  name: rustfs
   namespace: nine
   labels:
-    app.kubernetes.io/name: minio
+    app.kubernetes.io/name: rustfs
     app.kubernetes.io/part-of: ninekube
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
@@ -12,16 +12,16 @@ spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - minio.nine.local
-      secretName: minio-tls
+        - rustfs.nine.local
+      secretName: rustfs-tls
   rules:
-    - host: minio.nine.local
+    - host: rustfs.nine.local
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: minio
+                name: rustfs
                 port:
                   number: 9001
