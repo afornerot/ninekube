@@ -23,7 +23,7 @@ spec:
         - name: rustfs
           image: rustfs/rustfs:latest
           command:
-            - /usr/local/bin/rustfs
+            - /usr/bin/rustfs
             - /data
           ports:
             - name: api
@@ -47,14 +47,12 @@ spec:
             - name: data
               mountPath: /data
           readinessProbe:
-            httpGet:
-              path: /minio/health/live
+            tcpSocket:
               port: api
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            httpGet:
-              path: /minio/health/live
+            tcpSocket:
               port: api
             initialDelaySeconds: 10
             periodSeconds: 30
