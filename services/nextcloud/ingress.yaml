@@ -7,15 +7,15 @@ metadata:
     app.kubernetes.io/name: nextcloud
     app.kubernetes.io/part-of: ninekube
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
+    cert-manager.io/cluster-issuer: selfsigned-issuer
 spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - cloud.nine.local
+        - nextcloud.nine.local
       secretName: nextcloud-tls
   rules:
-    - host: cloud.nine.local
+    - host: nextcloud.nine.local
       http:
         paths:
           - path: /

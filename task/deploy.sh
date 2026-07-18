@@ -20,4 +20,11 @@ kubectl -n nine patch deployment ninegate --type='json' -p "[
   {\"op\": \"add\", \"path\": \"/spec/template/spec/hostAliases\", \"value\": [{\"ip\": \"${NODE_IP}\", \"hostnames\": [\"dex.${DOMAIN}\", \"ninegate.${DOMAIN}\"]}]}
 ]" 2>&1 | indent
 
+# Patch hostAliases so nextcloud pod can resolve dex.nine.local (needed for OIDC)
+if kubectl get deployment nextcloud -n nine >/dev/null 2>&1; then
+  kubectl -n nine patch deployment nextcloud --type='json' -p "[
+    {\"op\": \"add\", \"path\": \"/spec/template/spec/hostAliases\", \"value\": [{\"ip\": \"${NODE_IP}\", \"hostnames\": [\"dex.${DOMAIN}\", \"nextcloud.${DOMAIN}\"]}]}
+  ]" 2>&1 | indent
+fi
+
 done_ok "${ENV} overlay deployed"
