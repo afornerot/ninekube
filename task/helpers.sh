@@ -185,7 +185,7 @@ k8s_exec() {
     if [ -z "$pod" ]; then
         return 1
     fi
-    kubectl exec -n "$ns" "$pod" "$@"
+    kubectl exec -n "$ns" "$pod" -- "$@"
 }
 
 # Wait for a command to succeed (retries)

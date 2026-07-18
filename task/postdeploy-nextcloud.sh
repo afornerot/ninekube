@@ -70,11 +70,11 @@ fi
 section "Plugins"
 
 for plugin in calendar oidc_login groupfolders; do
-  if k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ app:list 2>/dev/null | grep -q "$plugin"; then
+  if k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ app:list 2>/dev/null | grep -q "$plugin"; then
     dim "${plugin}: already installed"
   else
     info "installing ${plugin}..."
-    k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ app:install "$plugin" 2>&1 | indent
+    k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ app:install "$plugin" 2>&1 | indent
     ok "${plugin}: installed"
   fi
 done
@@ -82,31 +82,31 @@ done
 # ─── CONFIGURE OIDC ─────────────────────────────────────────────────────────
 section "OIDC Configuration"
 
-OIDC_CONFIGURED=$(k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:get oidc_login 2>/dev/null | grep -c "provider-url" || echo "0")
+OIDC_CONFIGURED=$(k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:get oidc_login 2>/dev/null | grep -c "provider-url" || echo "0")
 if [ "$OIDC_CONFIGURED" -gt 0 ]; then
   dim "OIDC: already configured"
 else
   info "configuring OIDC login with Dex..."
 
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login provider-url --value="https://dex.${DOMAIN}" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login client-id --value="nextcloud" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login client-secret --value="${NEXTCLOUD_CLIENT_SECRET}" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login redirect-url --value="https://cloud.${DOMAIN}/index.php/login/via oidc_login/" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login discovery-url --value="https://dex.${DOMAIN}/.well-known/openid-configuration" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login auto-provision --value="1" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:app:set oidc_login uid_key --value="sub" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login provider-url --value="https://dex.${DOMAIN}" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login client-id --value="nextcloud" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login client-secret --value="${NEXTCLOUD_CLIENT_SECRET}" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login redirect-url --value="https://cloud.${DOMAIN}/index.php/login/via oidc_login/" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login discovery-url --value="https://dex.${DOMAIN}/.well-known/openid-configuration" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login auto-provision --value="1" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login uid_key --value="sub" 2>&1 | indent
   ok "OIDC: configured"
 fi
 
 # ─── CONFIGURE TRUSTED DOMAIN ───────────────────────────────────────────────
 section "Trusted Domain"
 
-TRUSTED_DOMAIN=$(k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:system:get trusted_domains 2>/dev/null | grep -c "cloud.${DOMAIN}" || echo "0")
+TRUSTED_DOMAIN=$(k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:get trusted_domains 2>/dev/null | grep -c "cloud.${DOMAIN}" || echo "0")
 if [ "$TRUSTED_DOMAIN" -gt 0 ]; then
   dim "trusted domain: already configured"
 else
   info "adding trusted domain..."
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ config:system:set trusted_domains 1 --value="cloud.${DOMAIN}" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:set trusted_domains 1 --value="cloud.${DOMAIN}" 2>&1 | indent
   ok "trusted domain added"
 fi
 
