@@ -8,6 +8,8 @@ metadata:
     app.kubernetes.io/part-of: ninekube
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: nextcloud
@@ -17,6 +19,17 @@ spec:
         app.kubernetes.io/name: nextcloud
         app.kubernetes.io/part-of: ninekube
     spec:
+      initContainers:
+        - name: wait-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgres 5432; do
+                echo "waiting for postgres..."
+                sleep 2
+              done
       containers:
         - name: nextcloud
           image: nextcloud:stable
@@ -25,7 +38,7 @@ spec:
               name: http
           env:
             - name: POSTGRES_HOST
-              value: "dev-postgres"
+              value: "postgres"
             - name: POSTGRES_DB
               value: "nextcloud"
             - name: POSTGRES_USER
@@ -39,7 +52,7 @@ spec:
                   name: postgres-secret
                   key: password
             - name: REDIS_HOST
-              value: "dev-redis"
+              value: "redis"
             - name: NEXTCLOUD_ADMIN_USER
               valueFrom:
                 secretKeyRef:
@@ -53,10 +66,32 @@ spec:
                   key: admin_password
                   optional: true
             - name: NEXTCLOUD_TRUSTED_DOMAINS
-              value: "cloud.nine.local"
+              value: "cloud.NINE_DOMAIN"
+            - name: OBJECTSTORE_S3_HOST
+              value: "rustfs"
+            - name: OBJECTSTORE_S3_PORT
+              value: "9000"
+            - name: OBJECTSTORE_S3_BUCKET
+              value: "nextcloud-data"
+            - name: OBJECTSTORE_S3_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs-secret
+                  key: root-user
+            - name: OBJECTSTORE_S3_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs-secret
+                  key: root-password
+            - name: OBJECTSTORE_S3_REGION
+              value: "us-east-1"
+            - name: OBJECTSTORE_S3_AUTOCREATE
+              value: "true"
+            - name: OBJECTSTORE_S3_USEPATHSTYLE
+              value: "true"
+            - name: OBJECTSTORE_S3_SSL
+              value: "false"
           volumeMounts:
-            - name: data
-              mountPath: /var/www/html
             - name: config
               mountPath: /usr/local/etc/php/conf.d/zzz-custom.ini
               subPath: zzz-custom.ini
@@ -77,9 +112,6 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
       volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: nextcloud-data
         - name: config
           configMap:
             name: nextcloud-config

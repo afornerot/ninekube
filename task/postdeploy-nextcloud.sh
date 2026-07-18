@@ -5,6 +5,9 @@ NAMESPACE="nine"
 SERVICE_NAME="nextcloud"
 DOMAIN=$(config_get domain 'nine.local')
 NEXTCLOUD_CLIENT_SECRET=$(config_get dex_nextcloud_client_secret '')
+RUSTFS_USER=$(config_get rustfs_root_user 'rustfsadmin')
+RUSTFS_PASS=$(config_get rustfs_root_password 'changeme')
+PG_USER=$(config_get postgres_username 'postgres')
 
 header "POSTDEPLOY NEXTCLOUD"
 
@@ -13,26 +16,39 @@ section "Database"
 PG_POD=$(k8s_pod "$NAMESPACE" "app.kubernetes.io/name=postgres")
 if [ -n "$PG_POD" ]; then
   DB_EXISTS=$(kubectl exec -n "$NAMESPACE" "$PG_POD" -- \
-    psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='nextcloud'" 2>/dev/null || echo "")
+    psql -U "${PG_USER}" -tAc "SELECT 1 FROM pg_database WHERE datname='nextcloud'" 2>/dev/null || echo "")
   if [ "$DB_EXISTS" != "1" ]; then
     info "creating nextcloud database..."
     kubectl exec -n "$NAMESPACE" "$PG_POD" -- \
-      psql -U postgres -c "CREATE DATABASE nextcloud;" 2>&1 | indent
+      psql -U "${PG_USER}" -c "CREATE DATABASE nextcloud;" 2>&1 | indent
     ok "nextcloud database created"
   else
     dim "nextcloud database: already exists"
   fi
 fi
 
-# ─── DETECT DEPLOYMENT NAME ────────────────────────────────────────────────
-DEPLOY_NAME=$(k8s_detect_deploy "$NAMESPACE" "$SERVICE_NAME")
-if [ -z "$DEPLOY_NAME" ]; then
-  ko "No deployment found for ${SERVICE_NAME}"
-  exit 1
-fi
-info "detected deployment: ${DEPLOY_NAME}"
+# ─── CREATE RUSTFS BUCKET ───────────────────────────────────────────────────
+section "Storage"
+info "ensuring nextcloud-data bucket exists in rustfs..."
+kubectl -n "$NAMESPACE" exec deployment/ninegate -- php -r "
+require '/app/vendor/autoload.php';
+\$client = new \Aws\S3\S3Client([
+    'version' => 'latest',
+    'region' => 'us-east-1',
+    'endpoint' => 'http://rustfs:9000',
+    'use_path_style_endpoint' => true,
+    'credentials' => ['key' => '${RUSTFS_USER}', 'secret' => '${RUSTFS_PASS}'],
+]);
+try {
+    \$client->headBucket(['Bucket' => 'nextcloud-data']);
+} catch (\Exception \$e) {
+    \$client->createBucket(['Bucket' => 'nextcloud-data']);
+}
+echo 'OK' . PHP_EOL;
+" 2>&1 | indent
+ok "bucket: nextcloud-data"
 
-# ─── WAIT FOR POD ───────────────────────────────────────────────────────────
+# ─── WAIT FOR NEXTCLOUD POD ──────────────────────────────────────────────────
 POD=$(k8s_ensure_pod "$NAMESPACE" "$SERVICE_NAME" 120)
 if [ -z "$POD" ]; then
   ko "nextcloud: not running"
@@ -42,7 +58,7 @@ ok "nextcloud: pod running"
 
 # ─── WAIT FOR NEXTCLOUD TO BE READY ────────────────────────────────────────
 info "waiting for Nextcloud to initialize..."
-if k8s_wait_ready "$NAMESPACE" "$SERVICE_NAME" "Nextcloud init" 60 \
+if k8s_wait_ready "$NAMESPACE" "$SERVICE_NAME" "Nextcloud init" 120 \
   -- bash -c "test -f /var/www/html/config/config.php && php occ status 2>/dev/null | grep -q 'installed: true'"; then
   ok "nextcloud: initialized"
 else
@@ -53,7 +69,7 @@ fi
 # ─── INSTALL PLUGINS ────────────────────────────────────────────────────────
 section "Plugins"
 
-for plugin in calendar oidc_login; do
+for plugin in calendar oidc_login groupfolders; do
   if k8s_exec "$NAMESPACE" "$SERVICE_NAME" -- php occ app:list 2>/dev/null | grep -q "$plugin"; then
     dim "${plugin}: already installed"
   else
@@ -94,5 +110,4 @@ else
   ok "trusted domain added"
 fi
 
-# ─── SUMMARY ────────────────────────────────────────────────────────────────
 done_ok "nextcloud configured — access at https://cloud.${DOMAIN}"
