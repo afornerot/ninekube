@@ -75,7 +75,8 @@ section "Access"
 DOMAIN=$(config_get domain 'nine.local')
 ADMIN_USER=$(config_get admin_username 'admin')
 hint "Add to /etc/hosts:"
-hint "  $(hostname -I | awk '{print $1}') ninegate.${DOMAIN} dex.${DOMAIN} rustfs.${DOMAIN} glauth.${DOMAIN}"
+NODE_IP=$(kubectl get node -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+hint "  ${NODE_IP} ninegate.${DOMAIN} dex.${DOMAIN} rustfs.${DOMAIN} glauth.${DOMAIN}"
 hint ""
 hint "Glauth LDAPS: ldaps://glauth.${DOMAIN}:30636"
 section "Credentials"

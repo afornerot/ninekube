@@ -15,7 +15,7 @@ kubectl apply -k "overlays/${ENV}/" 2>&1 | indent
 
 # Patch hostAliases so ninegate pod can resolve dex.nine.local (needed for OIDC)
 DOMAIN=$(config_get domain 'nine.local')
-NODE_IP=$(hostname -I | awk '{print $1}')
+NODE_IP=$(kubectl get node -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
 kubectl -n nine patch deployment ninegate --type='json' -p "[
   {\"op\": \"add\", \"path\": \"/spec/template/spec/hostAliases\", \"value\": [{\"ip\": \"${NODE_IP}\", \"hostnames\": [\"dex.${DOMAIN}\", \"ninegate.${DOMAIN}\"]}]}
 ]" 2>&1 | indent
