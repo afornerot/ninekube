@@ -27,7 +27,7 @@ bash "$(dirname "$0")/predeploy-rustfs.sh" "$ENV"
 for service_dir in "${NINEKUBE_DIR}/services"/*/; do
   [ ! -d "$service_dir" ] && continue
   service=$(basename "$service_dir")
-  if [ -L "${BASE_DIR}/${service}" ]; then
+  if [ -L "${BASE_DIR}/enabled-services/${service}" ]; then
     if [ -x "task/predeploy-${service}.sh" ]; then
       bash "$(dirname "$0")/predeploy-${service}.sh" "$ENV"
     fi
@@ -60,7 +60,7 @@ section "Active Services"
 for service_dir in "${NINEKUBE_DIR}/services"/*/; do
   [ ! -d "$service_dir" ] && continue
   service=$(basename "$service_dir")
-  if [ -L "${BASE_DIR}/${service}" ]; then
+  if [ -L "${BASE_DIR}/enabled-services/${service}" ]; then
     if [ -x "task/postdeploy-${service}.sh" ]; then
       bash "$(dirname "$0")/postdeploy-${service}.sh" "$ENV"
     else
