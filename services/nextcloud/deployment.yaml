@@ -66,7 +66,7 @@ spec:
                   key: admin_password
                   optional: true
             - name: NEXTCLOUD_TRUSTED_DOMAINS
-              value: "cloud.NINE_DOMAIN"
+              value: "nextcloud.NINE_DOMAIN"
             - name: OBJECTSTORE_S3_HOST
               value: "rustfs"
             - name: OBJECTSTORE_S3_PORT
