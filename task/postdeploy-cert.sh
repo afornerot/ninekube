@@ -44,14 +44,8 @@ done
 # ─── PATCH IngressRouteTCP (dex TLS passthrough) ──────────────────────────────
 info "patching dex IngressRouteTCP..."
 if kubectl get ingressroutetcp.traefik.io dex -n nine >/dev/null 2>&1; then
-  PATCH_FILE=$(mktemp)
-  cat > "$PATCH_FILE" <<PATCH
-[
-  {"op": "replace", "path": "/spec/routes/0/match", "value": "HostSNI(\`dex.${DOMAIN}\`)"}
-]
-PATCH
-  kubectl patch ingressroutetcp.traefik.io dex -n nine --type='json' -p @"$PATCH_FILE" 2>&1 | indent
-  rm -f "$PATCH_FILE"
+  PATCH=$(jq -n --arg domain "$DOMAIN" '[{"op": "replace", "path": "/spec/routes/0/match", "value": ("HostSNI(`" + $domain + "`)")}]')
+  kubectl patch ingressroutetcp.traefik.io dex -n nine --type='json' -p "$PATCH" 2>&1 | indent
   ok "ingressroutetcp dex: dex.${DOMAIN}"
 else
   warn "ingressroutetcp dex not found, skipping"
