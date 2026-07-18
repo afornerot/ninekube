@@ -39,9 +39,11 @@ done
 
 # ─── PATCH IngressRouteTCP (dex TLS passthrough) ──────────────────────────────
 info "patching dex IngressRouteTCP..."
-kubectl patch ingressroutetcp.traefik.io dex -n nine --type='json' -p "[
-  {\"op\": \"replace\", \"path\": \"/spec/routes/0/match\", \"value\": \"HostSNI(\\`dex.${DOMAIN}\\`)\"}
-]" 2>&1 | indent
+kubectl patch ingressroutetcp.traefik.io dex -n nine --type='json' <<PATCH
+[
+  {"op": "replace", "path": "/spec/routes/0/match", "value": "HostSNI(\`dex.${DOMAIN}\`)"}
+]
+PATCH
 ok "ingressroutetcp dex: dex.${DOMAIN}"
 
 # ─── CERTIFICATES ──────────────────────────────────────────────────────────────
