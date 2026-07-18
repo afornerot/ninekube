@@ -58,7 +58,7 @@ sleep 5
 kubectl get certificate -n nine 2>/dev/null | indent
 
 hint "add to /etc/hosts:"
-NODE_IP=$(kubectl get node -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+NODE_IP=$(kubectl get node -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' | tr ' ' '\n' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
 for host in $HOSTS; do
   hint "  ${NODE_IP} ${host}"
 done
