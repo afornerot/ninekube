@@ -59,7 +59,7 @@ ok "nextcloud: pod running"
 # ─── WAIT FOR NEXTCLOUD TO BE READY ────────────────────────────────────────
 info "waiting for Nextcloud to initialize..."
 if k8s_wait_ready "$NAMESPACE" "$SERVICE_NAME" "Nextcloud init" 120 \
-  -- bash -c "test -f /var/www/html/config/config.php && php occ status 2>/dev/null | grep -q 'installed: true'"; then
+  bash -c "test -f /var/www/html/config/config.php && php occ status 2>/dev/null | grep -q 'installed: true'"; then
   ok "nextcloud: initialized"
 else
   ko "nextcloud: initialization timeout"

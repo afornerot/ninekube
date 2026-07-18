@@ -194,7 +194,7 @@ k8s_wait_ready() {
   local ns="$1" service="$2" desc="$3" timeout="$4"
   shift 4
   for i in $(seq 1 "$timeout"); do
-    if k8s_exec "$ns" "$service" -- "$@" 2>/dev/null; then
+    if k8s_exec "$ns" "$service" "$@" 2>/dev/null; then
       return 0
     fi
     sleep 5
