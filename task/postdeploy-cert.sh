@@ -29,22 +29,33 @@ for service_dir in "${NINEKUBE_DIR}/services"/*/; do
 done
 
 for INGRESS in $INGRESSES; do
-  kubectl patch ingress "$INGRESS" -n nine --type='json' -p "[
-    {\"op\": \"replace\", \"path\": \"/spec/rules/0/host\", \"value\": \"${INGRESS}.${DOMAIN}\"},
-    {\"op\": \"replace\", \"path\": \"/spec/tls/0/hosts/0\", \"value\": \"${INGRESS}.${DOMAIN}\"},
-    {\"op\": \"replace\", \"path\": \"/metadata/annotations/cert-manager.io~1cluster-issuer\", \"value\": \"${ISSUER}\"}
-  ]" 2>&1 | indent
-  ok "ingress ${INGRESS}: ${INGRESS}.${DOMAIN}"
+  if kubectl get ingress "$INGRESS" -n nine >/dev/null 2>&1; then
+    kubectl patch ingress "$INGRESS" -n nine --type='json' -p "[
+      {\"op\": \"replace\", \"path\": \"/spec/rules/0/host\", \"value\": \"${INGRESS}.${DOMAIN}\"},
+      {\"op\": \"replace\", \"path\": \"/spec/tls/0/hosts/0\", \"value\": \"${INGRESS}.${DOMAIN}\"},
+      {\"op\": \"replace\", \"path\": \"/metadata/annotations/cert-manager.io~1cluster-issuer\", \"value\": \"${ISSUER}\"}
+    ]" 2>&1 | indent
+    ok "ingress ${INGRESS}: ${INGRESS}.${DOMAIN}"
+  else
+    warn "ingress ${INGRESS} not found, skipping"
+  fi
 done
 
 # ─── PATCH IngressRouteTCP (dex TLS passthrough) ──────────────────────────────
 info "patching dex IngressRouteTCP..."
-kubectl patch ingressroutetcp.traefik.io dex -n nine --type='json' <<PATCH
+if kubectl get ingressroutetcp.traefik.io dex -n nine >/dev/null 2>&1; then
+  PATCH_FILE=$(mktemp)
+  cat > "$PATCH_FILE" <<PATCH
 [
   {"op": "replace", "path": "/spec/routes/0/match", "value": "HostSNI(\`dex.${DOMAIN}\`)"}
 ]
 PATCH
-ok "ingressroutetcp dex: dex.${DOMAIN}"
+  kubectl patch ingressroutetcp.traefik.io dex -n nine --type='json' -p @"$PATCH_FILE" 2>&1 | indent
+  rm -f "$PATCH_FILE"
+  ok "ingressroutetcp dex: dex.${DOMAIN}"
+else
+  warn "ingressroutetcp dex not found, skipping"
+fi
 
 # ─── CERTIFICATES ──────────────────────────────────────────────────────────────
 section "Certificates"
