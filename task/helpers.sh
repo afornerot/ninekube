@@ -178,14 +178,14 @@ k8s_ensure_pod() {
 # Exec a command in a service pod
 # Usage: k8s_exec <namespace> <service-name> -- <command...>
 k8s_exec() {
-  local ns="$1" service="$2"
-  shift 2
-  local pod
-  pod=$(k8s_pod "$ns" "app.kubernetes.io/name=${service}")
-  if [ -z "$pod" ]; then
-    return 1
-  fi
-  kubectl exec -n "$ns" "$pod" -- "$@"
+    local ns="$1" service="$2"
+    shift 2
+    local pod
+    pod=$(k8s_pod "$ns" "app.kubernetes.io/name=${service}")
+    if [ -z "$pod" ]; then
+        return 1
+    fi
+    kubectl exec -n "$ns" "$pod" "$@"
 }
 
 # Wait for a command to succeed (retries)
