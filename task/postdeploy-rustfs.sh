@@ -2,19 +2,9 @@
 source "$(dirname "$0")/helpers.sh"
 
 ENV="${1:-dev}"
-PREFIX="${ENV}"
 
 RUSTFS_ROOT_USER=$(config_get rustfs_root_user 'rustfsadmin')
 RUSTFS_ROOT_PASS=$(config_get rustfs_root_password 'changeme')
-
-PF_PORT=9000
-PF_PID=""
-
-cleanup() {
-  [ -n "$PF_PID" ] && kill "$PF_PID" 2>/dev/null
-  rm -f /tmp/mc
-}
-trap cleanup EXIT
 
 header "POSTDEPLOY RUSTFS"
 
@@ -26,37 +16,36 @@ if ! k8s_wait_pod "nine" "app.kubernetes.io/name=rustfs" 60; then
 fi
 ok "rustfs: pod running"
 
-# ─── PORT-FORWARD ──────────────────────────────────────────────────────────────
-info "starting port-forward to rustfs API..."
-kubectl port-forward -n nine "svc/rustfs" "${PF_PORT}:9000" &>/dev/null &
-PF_PID=$!
-sleep 2
-
-# ─── DOWNLOAD MC ───────────────────────────────────────────────────────────────
-if [ ! -x /tmp/mc ]; then
-  info "downloading mc client..."
-  curl -sL "https://dl.min.io/client/mc/release/linux-amd64/mc" -o /tmp/mc 2>&1 | indent
-  chmod +x /tmp/mc
-fi
-
-# ─── CONFIGURE MC ALIAS ───────────────────────────────────────────────────────
-info "configuring mc alias with root credentials..."
-/tmp/mc alias set ninekube "http://127.0.0.1:${PF_PORT}" "$RUSTFS_ROOT_USER" "$RUSTFS_ROOT_PASS" &>/dev/null
-
-if ! /tmp/mc ls ninekube/ &>/dev/null; then
-  ko "rustfs: cannot connect with root credentials"
-  hint "root password is PVC-bound, use the original password or delete the PVC"
+# ─── WAIT FOR NINEGATE ────────────────────────────────────────────────────────
+info "waiting for ninegate pod..."
+if ! k8s_wait_pod "nine" "app.kubernetes.io/name=ninegate" 60; then
+  ko "ninegate: not running"
   exit 1
 fi
-ok "rustfs: connected with root credentials"
+ok "ninegate: pod running"
 
-# ─── CREATE BUCKETS ──────────────────────────────────────────────────────────
+# ─── CREATE BUCKET FROM CLUSTER ──────────────────────────────────────────────
 info "creating ninegate-uploads bucket..."
-/tmp/mc mb ninekube/ninegate-uploads 2>/dev/null || true
+kubectl -n nine exec deployment/ninegate -- php -r "
+require '/app/vendor/autoload.php';
+\$client = new \Aws\S3\S3Client([
+    'version' => 'latest',
+    'region' => 'us-east-1',
+    'endpoint' => 'http://rustfs:9000',
+    'use_path_style_endpoint' => true,
+    'credentials' => ['key' => '${RUSTFS_ROOT_USER}', 'secret' => '${RUSTFS_ROOT_PASS}'],
+]);
+try {
+    \$client->headBucket(['Bucket' => 'ninegate-uploads']);
+} catch (\Exception \$e) {
+    \$client->createBucket(['Bucket' => 'ninegate-uploads']);
+}
+echo 'OK' . PHP_EOL;
+" 2>&1 | indent
 ok "bucket: ninegate-uploads"
 
-# ─── VERIFY BUCKET IS ACCESSIBLE FROM CLUSTER ────────────────────────────────
-info "verifying bucket is accessible from cluster..."
+# ─── VERIFY BUCKET ────────────────────────────────────────────────────────────
+info "verifying bucket..."
 kubectl -n nine exec deployment/ninegate -- php -r "
 require '/app/vendor/autoload.php';
 \$client = new \Aws\S3\S3Client([
@@ -74,6 +63,6 @@ try {
     exit(1);
 }
 " 2>&1 | indent
-ok "bucket: accessible from cluster"
+ok "bucket: verified"
 
 done_ok "rustfs configured"
