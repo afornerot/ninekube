@@ -96,18 +96,18 @@ done
 
 # ─── CONFIGURE OIDC ─────────────────────────────────────────────────────────
 section "OIDC Configuration"
-OIDC_CONFIGURED=$(k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:get oidc_login provider-url 2>/dev/null | grep -c "dex" || true)
+OIDC_CONFIGURED=$(k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:get oidc_login_provider_url 2>/dev/null | grep -c "dex" || true)
 if [ "$OIDC_CONFIGURED" -gt 0 ] 2>/dev/null; then
   dim "OIDC: already configured"
 else
   info "configuring OIDC login with Dex..."
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login provider-url --value "https://dex.${DOMAIN}" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login client-id --value "nextcloud" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login client-secret --value "${NEXTCLOUD_CLIENT_SECRET}" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login redirect-url --value "https://nextcloud.${DOMAIN}/index.php/login/via oidc_login/" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login discovery-url --value "https://dex.${DOMAIN}/.well-known/openid-configuration" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login auto-provision --value "1" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login uid_key --value "sub" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:set oidc_login_provider_url --value "https://dex.${DOMAIN}" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:set oidc_login_client_id --value "nextcloud" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:set oidc_login_client_secret --value "${NEXTCLOUD_CLIENT_SECRET}" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:set oidc_login_redirect_url --value "https://nextcloud.${DOMAIN}/index.php/login/via oidc_login/" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:set oidc_login_discovery_url --value "https://dex.${DOMAIN}/.well-known/openid-configuration" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:set oidc_login_auto_provision --value "1" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:set oidc_login_uid_key --value "sub" 2>&1 | indent
   ok "OIDC: configured"
 fi
 
