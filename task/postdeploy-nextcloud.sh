@@ -108,6 +108,7 @@ else
   k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:set oidc_login_discovery_url --value "https://dex.${DOMAIN}/.well-known/openid-configuration" 2>&1 | indent
   k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:set oidc_login_auto_provision --value "1" 2>&1 | indent
   k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:set oidc_login_uid_key --value "sub" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:set oidc_login_tls_verify --value false --type boolean 2>&1 | indent
   ok "OIDC: configured"
 fi
 
