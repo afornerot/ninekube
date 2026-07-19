@@ -106,7 +106,8 @@ stringData:
         secret: "${NEXTCLOUD_CLIENT_SECRET}"
         name: Nextcloud
         redirectURIs:
-          - "https://cloud.${DOMAIN}/index.php/login/via oidc_login/"
+          - "http://nextcloud.${DOMAIN}/apps/oidc_login/oidc"
+          - "https://nextcloud.${DOMAIN}/apps/oidc_login/oidc"
       - id: tinyfilemanager
         secret: "${TFM_CLIENT_SECRET}"
         name: Tiny File Manager
