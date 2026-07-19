@@ -33,6 +33,7 @@ spec:
       containers:
         - name: nextcloud
           image: ghcr.io/afornerot/nextcloud-custom:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
               name: http
@@ -70,9 +71,6 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/www/html
-            - name: config
-              mountPath: /usr/local/etc/php/conf.d/zzz-custom.ini
-              subPath: zzz-custom.ini
           livenessProbe:
             exec:
               command:
@@ -93,6 +91,3 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: nextcloud-data
-        - name: config
-          configMap:
-            name: nextcloud-config
