@@ -32,7 +32,7 @@ spec:
               done
       containers:
         - name: nextcloud
-          image: nextcloud:stable
+          image: ghcr.io/afornerot/nextcloud-custom:latest
           ports:
             - containerPort: 80
               name: http
@@ -67,31 +67,9 @@ spec:
                   optional: true
             - name: NEXTCLOUD_TRUSTED_DOMAINS
               value: "nextcloud.NINE_DOMAIN"
-            - name: OBJECTSTORE_S3_HOST
-              value: "rustfs"
-            - name: OBJECTSTORE_S3_PORT
-              value: "9000"
-            - name: OBJECTSTORE_S3_BUCKET
-              value: "nextcloud-data"
-            - name: OBJECTSTORE_S3_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: rustfs-secret
-                  key: root-user
-            - name: OBJECTSTORE_S3_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: rustfs-secret
-                  key: root-password
-            - name: OBJECTSTORE_S3_REGION
-              value: "us-east-1"
-            - name: OBJECTSTORE_S3_AUTOCREATE
-              value: "true"
-            - name: OBJECTSTORE_S3_USEPATHSTYLE
-              value: "true"
-            - name: OBJECTSTORE_S3_SSL
-              value: "false"
           volumeMounts:
+            - name: data
+              mountPath: /var/www/html
             - name: config
               mountPath: /usr/local/etc/php/conf.d/zzz-custom.ini
               subPath: zzz-custom.ini
@@ -112,6 +90,9 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
       volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: nextcloud-data
         - name: config
           configMap:
             name: nextcloud-config

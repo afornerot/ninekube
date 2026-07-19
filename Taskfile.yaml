@@ -73,6 +73,14 @@ tasks:
     cmds:
       - bash task/service-list.sh
 
+  build:
+    desc: Build and push custom Docker image for a service
+    silent: true
+    vars:
+      SERVICE: '{{.SERVICE}}'
+    cmds:
+      - bash task/build-${SERVICE}.sh
+
   service-enable:
     desc: Enable a service (symlink + kustomize)
     silent: true

@@ -58,71 +58,67 @@ ok "nextcloud: pod running"
 
 # ─── INSTALL NEXTCLOUD ──────────────────────────────────────────────────────
 section "Installation"
-INSTALLED=$(k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ status 2>/dev/null | grep -c "installed: true" || echo "0")
-if [ "$INSTALLED" -gt 0 ]; then
+INSTALLED=$(k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ status 2>/dev/null | grep "installed:" | awk '{print $NF}')
+if [ "$INSTALLED" = "true" ]; then
   dim "nextcloud: already installed"
 else
   info "installing Nextcloud..."
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" curl -s -X POST http://localhost/ \
-    -d "install=true&admin_user=admin&admin_pass=changeme&dbtype=pgsql&dbhost=postgres&dbport=5432&dbname=nextcloud&dbuser=${PG_USER}&dbpass=$(config_get pg_password 'changeme')&directory=/var/www/html/data" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ maintenance:install \
+    --admin-user admin --admin-pass changeme \
+    --database pgsql --database-name nextcloud \
+    --database-host postgres --database-port 5432 \
+    --database-user "${PG_USER}" --database-pass "$(config_get pg_password 'changeme')" 2>&1 | indent
   ok "nextcloud: installed"
 fi
 
 # ─── CONFIGURE S3 STORAGE ───────────────────────────────────────────────────
 section "S3 Storage"
-S3_CONFIGURED=$(k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:get objectstore 2>/dev/null | grep -c "S3" || echo "0")
-if [ "$S3_CONFIGURED" -gt 0 ]; then
+S3_CONFIGURED=$(k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:get objectstore 2>/dev/null | grep -c "S3" || true)
+if [ "$S3_CONFIGURED" -gt 0 ] 2>/dev/null; then
   dim "S3: already configured"
 else
   info "configuring S3 storage with RustFS..."
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:set objectstore --value='{"class":"\\\\OC\\\\Files\\\\ObjectStore\\\\S3","arguments":{"bucket":"nextcloud-data","region":"us-east-1","hostname":"rustfs","port":9000,"key":"${RUSTFS_USER}","secret":"${RUSTFS_PASS}","use_path_style":true,"ssl":false}}' 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:set objectstore --value '{"class":"\OC\Files\ObjectStore\S3","arguments":{"bucket":"nextcloud-data","region":"us-east-1","hostname":"rustfs","port":9000,"key":"${RUSTFS_USER}","secret":"${RUSTFS_PASS}","use_path_style":true,"ssl":false}}' 2>&1 | indent
   ok "S3: configured"
 fi
 
-# ─── INSTALL PLUGINS ────────────────────────────────────────────────────────
+# ─── ENABLE PLUGINS ──────────────────────────────────────────────────────────
 section "Plugins"
-
-for plugin in calendar oidc_login groupfolders; do
+for plugin in calendar oidc_login; do
   if k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ app:list 2>/dev/null | grep -q "$plugin"; then
-    dim "${plugin}: already installed"
+    dim "${plugin}: already enabled"
   else
-    info "installing ${plugin}..."
-    if k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ app:install "$plugin" 2>&1 | indent; then
-      ok "${plugin}: installed"
-    else
-      warn "${plugin}: appstore unavailable, skipping"
-    fi
+    info "enabling ${plugin}..."
+    k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ app:enable "$plugin" 2>&1 | indent
+    ok "${plugin}: enabled"
   fi
 done
 
 # ─── CONFIGURE OIDC ─────────────────────────────────────────────────────────
 section "OIDC Configuration"
-
-OIDC_CONFIGURED=$(k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:get oidc_login provider-url 2>/dev/null | grep -c "dex" || echo "0")
-if [ "$OIDC_CONFIGURED" -gt 0 ]; then
+OIDC_CONFIGURED=$(k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:get oidc_login provider-url 2>/dev/null | grep -c "dex" || true)
+if [ "$OIDC_CONFIGURED" -gt 0 ] 2>/dev/null; then
   dim "OIDC: already configured"
 else
   info "configuring OIDC login with Dex..."
-
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login provider-url --value="https://dex.${DOMAIN}" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login client-id --value="nextcloud" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login client-secret --value="${NEXTCLOUD_CLIENT_SECRET}" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login redirect-url --value="https://nextcloud.${DOMAIN}/index.php/login/via oidc_login/" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login discovery-url --value="https://dex.${DOMAIN}/.well-known/openid-configuration" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login auto-provision --value="1" 2>&1 | indent
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login uid_key --value="sub" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login provider-url --value "https://dex.${DOMAIN}" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login client-id --value "nextcloud" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login client-secret --value "${NEXTCLOUD_CLIENT_SECRET}" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login redirect-url --value "https://nextcloud.${DOMAIN}/index.php/login/via oidc_login/" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login discovery-url --value "https://dex.${DOMAIN}/.well-known/openid-configuration" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login auto-provision --value "1" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:app:set oidc_login uid_key --value "sub" 2>&1 | indent
   ok "OIDC: configured"
 fi
 
 # ─── CONFIGURE TRUSTED DOMAIN ───────────────────────────────────────────────
 section "Trusted Domain"
-
-TRUSTED_DOMAIN=$(k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:get trusted_domains 2>/dev/null | grep -c "nextcloud.${DOMAIN}" || echo "0")
-if [ "$TRUSTED_DOMAIN" -gt 0 ]; then
+TRUSTED_DOMAIN=$(k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:get trusted_domains 1 2>/dev/null | grep -c "nextcloud.${DOMAIN}" || true)
+if [ "$TRUSTED_DOMAIN" -gt 0 ] 2>/dev/null; then
   dim "trusted domain: already configured"
 else
   info "adding trusted domain..."
-  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:set trusted_domains 1 --value="nextcloud.${DOMAIN}" 2>&1 | indent
+  k8s_exec "$NAMESPACE" "$SERVICE_NAME" php occ config:system:set trusted_domains 1 --value "nextcloud.${DOMAIN}" 2>&1 | indent
   ok "trusted domain added"
 fi
 
