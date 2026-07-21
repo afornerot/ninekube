@@ -1,190 +1,106 @@
 #!/bin/bash
 source "$(dirname "$0")/helpers.sh"
 
-SERVICE="${1:-}"
+CLIENT="${1:-}"
 BACKUP_BASE="${NINEKUBE_DIR}/backups"
-PG_USER=$(config_get postgres_username 'postgres')
 
-restore_service() {
-  local svc="$1"
+restore_pvc() {
+  local ns="$1" pvc="$2" src="$3"
+  local pod_name="restore-pvc-$$-$(date +%s)"
 
-  # Check if backup exists
-  if [ ! -d "${BACKUP_BASE}/${svc}" ]; then
-    dim "${svc}: no backup found"
-    return
-  fi
+  kubectl run "$pod_name" --restart=Never -n "$ns" --image=busybox:latest \
+    --overrides="{
+      \"spec\": {
+        \"volumes\": [
+          {\"name\": \"data\", \"persistentVolumeClaim\": {\"claimName\": \"${pvc}\"}},
+          {\"name\": \"in\", \"emptyDir\": {}}
+        ],
+        \"containers\": [{
+          \"name\": \"b\", \"image\": \"busybox:latest\",
+          \"command\": [\"sh\",\"-c\",\"tar xzf /in/${pvc}.tar.gz -C /data && sleep infinity\"],
+          \"volumeMounts\": [
+            {\"name\": \"data\", \"mountPath\": \"/data\"},
+            {\"name\": \"in\", \"mountPath\": \"/in\"}
+          ]
+        }],
+        \"restartPolicy\": \"Never\"
+      }
+    }" 2>&1 | indent
 
-  # List available backups
-  local backups
-  backups=$(ls -1d "${BACKUP_BASE}/${svc}"/*/ 2>/dev/null | sort -r)
-  local count
-  count=$(echo "$backups" | wc -l)
+  kubectl cp "$src" "${ns}/${pod_name}:/in/${pvc}.tar.gz" 2>&1 | indent
+  k8s_wait_pod "$ns" "run=${pod_name}" 30
+  kubectl delete pod "$pod_name" -n "$ns" --ignore-not-found 2>/dev/null
+}
 
-  if [ -z "$backups" ]; then
-    dim "${svc}: no backup found"
-    return
-  fi
+restore_database() {
+  local ns="$1" db_name="$2" src="$3"
+  local pg_pod
+  pg_pod=$(kubectl get pod -n "$ns" -l app.kubernetes.io/name=postgresql -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+  [ -z "$pg_pod" ] && { warn "PostgreSQL pod not found"; return 1; }
 
-  header "RESTORE: ${svc}"
+  info "restoring database: ${db_name}..."
+  gunzip -c "$src" | kubectl exec -i -n "$ns" "$pg_pod" -- psql -U ninekube "$db_name" 2>&1 | indent
+  ok "database restored"
+}
+
+restore_client() {
+  local cn="$1"
+  local ns
+  ns=$(cn_namespace "$cn")
+  [ -z "$ns" ] && { warn "ClientNamespace '$cn' not provisioned"; return 1; }
+
+  local client_dir="${BACKUP_BASE}/${cn}"
+  [ ! -d "$client_dir" ] && { warn "no backups found for '$cn'"; return 1; }
 
   # Select backup date
-  local backup_dir
-  if [ "$count" -gt 1 ]; then
-    section "Available backups:"
-    local i=1
-    while IFS= read -r dir; do
-      local date
-      date=$(basename "$dir")
-      local pvc_count=0
-      local bdd_count=0
-      [ -d "${dir}/pvc" ] && pvc_count=$(find "${dir}/pvc" -name "*.tar.gz" | wc -l)
-      [ -d "${dir}/bdd" ] && bdd_count=$(find "${dir}/bdd" -name "*.sql.gz" | wc -l)
-      dim "  ${i}) ${date} (PVC: ${pvc_count}, BDD: ${bdd_count})"
-      i=$((i + 1))
-    done <<< "$backups"
-    echo ""
+  echo "Available backups for ${cn}:"
+  select date_dir in $(ls -1 "$client_dir" | sort -r); do
+    [ -n "$date_dir" ] && break
+    echo "Invalid selection"
+  done
 
-    local choice
-    echo -e -n "  ${BOLD}${CYAN}?${NC} Select backup to restore [1-${count}] ${BOLD}[1]${NC} "
-    read -r choice
-    [ -z "$choice" ] && choice=1
-    backup_dir=$(echo "$backups" | sed -n "${choice}p")
-  else
-    backup_dir=$(echo "$backups" | head -1)
-    local date
-    date=$(basename "$backup_dir")
-    dim "Using backup: ${date}"
+  local restore_dir="${client_dir}/${date_dir}"
+  header "RESTORE: ${cn} from ${date_dir}"
+
+  # Restore PVCs
+  if [ -d "${restore_dir}/pvc" ]; then
+    for tar_file in "${restore_dir}/pvc"/*.tar.gz; do
+      [ ! -f "$tar_file" ] && continue
+      local pvc_name
+      pvc_name=$(basename "$tar_file" .tar.gz)
+      info "restoring PVC: ${pvc_name}..."
+      restore_pvc "$ns" "$pvc_name" "$tar_file"
+      ok "PVC ${pvc_name} restored"
+    done
   fi
 
-  if [ ! -d "$backup_dir" ]; then
-    ko "invalid backup selection"
-    return
+  # Restore databases
+  if [ -d "${restore_dir}/bdd" ]; then
+    for sql_file in "${restore_dir}/bdd"/*.sql.gz; do
+      [ ! -f "$sql_file" ] && continue
+      local db_name
+      db_name=$(basename "$sql_file" .sql.gz)
+      restore_database "$ns" "$db_name" "$sql_file"
+    done
   fi
 
-  # Restore PVC
-  local pvc_files
-  pvc_files=$(find "${backup_dir}/pvc" -name "*.tar.gz" 2>/dev/null)
-  if [ -n "$pvc_files" ]; then
-    echo ""
-    if ask_yn "Restore PVC data for '${svc}'?"; then
-      for pvc_file in $pvc_files; do
-        local pvc_name
-        pvc_name=$(basename "$pvc_file" .tar.gz)
-        info "restoring PVC: ${pvc_name}..."
-
-        # Find or create PVC
-        local existing_pvc
-        existing_pvc=$(kubectl get pvc -n nine -l "app.kubernetes.io/name=${svc}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
-        if [ -z "$existing_pvc" ]; then
-          # Create PVC with same size as backup (default 5Gi)
-          kubectl apply -f - <<EOF 2>&1 | indent
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: ${pvc_name}
-  namespace: nine
-  labels:
-    app.kubernetes.io/name: ${svc}
-    app.kubernetes.io/part-of: ninekube
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 5Gi
-  storageClassName: local-path
-EOF
-        fi
-
-        # Create restore pod
-        local pod_name="restore-pvc-$$-$(date +%s)"
-        kubectl run "$pod_name" --restart=Never -n nine --image=busybox:latest \
-          --overrides="{
-            \"spec\": {
-              \"volumes\": [
-                {\"name\": \"data\", \"persistentVolumeClaim\": {\"claimName\": \"${pvc_name}\"}},
-                {\"name\": \"backup\", \"emptyDir\": {}}
-              ],
-              \"containers\": [{
-                \"name\": \"b\", \"image\": \"busybox:latest\",
-                \"command\": [\"sleep\", \"infinity\"],
-                \"volumeMounts\": [
-                  {\"name\": \"data\", \"mountPath\": \"/data\"},
-                  {\"name\": \"backup\", \"mountPath\": \"/backup\"}
-                ]
-              }],
-              \"restartPolicy\": \"Never\"
-            }
-          }" 2>&1 | indent
-
-        k8s_wait_pod "nine" "run=${pod_name}" 30
-        kubectl cp "$pvc_file" "nine/${pod_name}:/backup/$(basename $pvc_file)" 2>&1 | indent
-        kubectl exec -n nine "$pod_name" -- sh -c "tar xzf /backup/$(basename $pvc_file) -C /data" 2>&1 | indent
-        kubectl delete pod "$pod_name" -n nine --ignore-not-found 2>/dev/null
-        ok "PVC ${pvc_name} restored"
-      done
-    fi
-  fi
-
-  # Restore database
-  local bdd_files
-  bdd_files=$(find "${backup_dir}/bdd" -name "*.sql.gz" 2>/dev/null)
-  if [ -n "$bdd_files" ]; then
-    echo ""
-    if ask_yn "Restore database for '${svc}'?"; then
-      for bdd_file in $bdd_files; do
-        local db_name
-        db_name=$(basename "$bdd_file" .sql.gz)
-        info "restoring database: ${db_name}..."
-
-        # Create database if it doesn't exist
-        kubectl exec -n nine dev-postgres-0 -- psql -U "$PG_USER" -tAc \
-          "SELECT 1 FROM pg_database WHERE datname='${db_name}'" 2>/dev/null | tr -d '[:space:]'
-        local db_exists
-        db_exists=$(kubectl exec -n nine dev-postgres-0 -- psql -U "$PG_USER" -tAc \
-          "SELECT 1 FROM pg_database WHERE datname='${db_name}'" 2>/dev/null | tr -d '[:space:]')
-
-        if [ "$db_exists" != "1" ]; then
-          kubectl exec -n nine dev-postgres-0 -- psql -U "$PG_USER" -c "CREATE DATABASE ${db_name}" 2>&1 | indent
-        fi
-
-        # Drop and recreate tables
-        kubectl exec -n nine dev-postgres-0 -- psql -U "$PG_USER" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public" 2>&1 | indent
-
-        # Restore from dump
-        cat "$bdd_file" | kubectl exec -i -n nine dev-postgres-0 -- psql -U "$PG_USER" -d "$db_name" 2>&1 | indent
-        ok "database ${db_name} restored"
-      done
-    fi
-  fi
+  done_ok "restore complete for ${cn}"
 }
 
 # ─── MAIN ──────────────────────────────────────────────────────────────────────
-if [ -n "$SERVICE" ]; then
-  restore_service "$SERVICE"
+if [ -n "$CLIENT" ]; then
+  restore_client "$CLIENT"
 else
-  section "Checking backups..."
-  found=false
-
-  # Core components
-  for component in rustfs; do
-    if [ -d "${BACKUP_BASE}/${component}" ]; then
-      restore_service "$component"
-      found=true
-    fi
-  done
-
-  # Services
-  for service_dir in "${NINEKUBE_DIR}/services"/*/; do
-    [ ! -d "$service_dir" ] && continue
-    svc=$(basename "$service_dir")
-    if [ -d "${BACKUP_BASE}/${svc}" ]; then
-      restore_service "$svc"
-      found=true
-    fi
-  done
-
-  if [ "$found" = false ]; then
-    warn "no backups found"
+  section "Select client to restore"
+  clients=($(cn_list 2>/dev/null))
+  if [ ${#clients[@]} -eq 0 ]; then
+    warn "no client namespaces found"
+    exit 1
   fi
+  echo "Available clients:"
+  select cn in "${clients[@]}"; do
+    [ -n "$cn" ] && break
+    echo "Invalid selection"
+  done
+  restore_client "$cn"
 fi

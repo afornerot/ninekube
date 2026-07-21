@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- provisioning_v1alpha1_clientnamespace.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

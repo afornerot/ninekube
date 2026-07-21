@@ -53,18 +53,6 @@ config_set rustfs_root_user "$RUSTFS_ROOT_USER"
 RUSTFS_ROOT_PASS=$(ask_value_constrained "RustFS root password" "$(config_get rustfs_root_password 'changeme')" 8 40)
 config_set rustfs_root_password "$RUSTFS_ROOT_PASS"
 
-# ─── GENERATE KUSTOMIZE .env ────────────────────────────────────────────────────
-section "Kustomize .env"
-LDAP_BASE_DN="dc=$(echo "${DOMAIN}" | sed 's/\./,dc=/g')"
-
-cat > "${NINEKUBE_DIR}/base/.env" <<EOF
-DOMAIN=${DOMAIN}
-MINIO_HOST=rustfs.${DOMAIN}
-ADMIN_EMAIL=${ADMIN_EMAIL}
-CLUSTER_EMAIL=${EMAIL}
-EOF
-ok "base/.env generated"
-
 # ─── DONE ────────────────────────────────────────────────────────────────────────
 hint "File: ${CONFIG_FILE}"
 done_ok "config set"

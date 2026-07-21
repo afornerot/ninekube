@@ -235,53 +235,20 @@ EOF
   return 0  # changed
 }
 
-# Generate enabled-services/kustomization.yaml from symlinks
-generate_enabled_kustomization() {
-  local enabled_dir="${BASE_DIR}/enabled-services"
-  mkdir -p "${enabled_dir}"
-  local kust_file="${enabled_dir}/kustomization.yaml"
-
-  local services=()
-  for link in "${enabled_dir}"/*/; do
-    [ -L "${link%/}" ] || continue
-    services+=("$(basename "${link%/}")")
-  done
-
-  cat > "${kust_file}" <<EOF
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-
-resources:
-EOF
-
-  if [ ${#services[@]} -eq 0 ]; then
-    cat > "${enabled_dir}/noop.yaml" <<NOOP
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: enabled-services-state
-  namespace: nine
-data: {}
-NOOP
-    echo "  - noop.yaml" >> "${kust_file}"
-  else
-    rm -f "${enabled_dir}/noop.yaml"
-    for svc in "${services[@]}"; do
-      echo "  - ${svc}" >> "${kust_file}"
-    done
-  fi
+# ─── CLIENT NAMESPACE HELPERS ────────────────────────────────────────────────────
+# Get all ClientNamespace names
+cn_list() {
+  kubectl get cn -o jsonpath='{.items[*].metadata.name}' 2>/dev/null
 }
 
-# Generate base/.env from .ninekube/config.yaml (called before kustomize builds)
-generate_env() {
-  local domain
-  domain=$(config_get domain 'nine.local')
-  local email
-  email=$(config_get email "admin@${domain}")
+# Get the namespace for a ClientNamespace
+cn_namespace() {
+  local name="$1"
+  kubectl get cn "$name" -o jsonpath='{.status.namespace}' 2>/dev/null
+}
 
-  cat > "${BASE_DIR}/.env" <<EOF
-DOMAIN=${domain}
-MINIO_HOST=rustfs.${domain}
-CLUSTER_EMAIL=${email}
-EOF
+# Get the admin secret name for a ClientNamespace
+cn_admin_secret() {
+  local name="$1"
+  kubectl get cn "$name" -o jsonpath='{.status.adminSecretName}' 2>/dev/null
 }

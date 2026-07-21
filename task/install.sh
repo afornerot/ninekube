@@ -159,6 +159,80 @@ else
   fi
 fi
 
+# ─── GO ──────────────────────────────────────────────────────────────────────────
+if command -v go &> /dev/null; then
+  CURRENT=$(go version 2>/dev/null | grep -oP 'go\K[0-9]+\.[0-9]+(\.[0-9]+)?')
+  LATEST=$(curl -s --max-time 5 https://go.dev/dl/?mode=json 2>/dev/null | grep -oP '"version":"go\K[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)
+  if [ -n "$LATEST" ] && [ "$CURRENT" != "$LATEST" ]; then
+    warn "go: ${CURRENT}"
+    hint "latest: ${LATEST}"
+    if ask_yn "Update go?"; then
+      info "go: updating to ${LATEST}..."
+      GO_TARBALL="go${LATEST}.linux-amd64.tar.gz"
+      curl -sL "https://go.dev/dl/${GO_TARBALL}" -o "/tmp/${GO_TARBALL}" 2>&1
+      rm -rf /usr/local/go
+      tar -C /usr/local -xzf "/tmp/${GO_TARBALL}" 2>&1
+      rm -f "/tmp/${GO_TARBALL}"
+      export PATH="/usr/local/go/bin:$PATH"
+      NEW=$(go version 2>/dev/null | grep -oP 'go\K[0-9]+\.[0-9]+(\.[0-9]+)?')
+      [ "$NEW" = "$LATEST" ] && ok "go: ${NEW}" || warn "go: ${NEW} (update failed)"
+    else
+      ok "go: ${CURRENT} (skipped)"
+    fi
+  else
+    ok "go: ${CURRENT}"
+  fi
+else
+  warn "go: not installed"
+  if ask_yn "Install go?"; then
+    info "go: installing latest..."
+    LATEST=$(curl -s --max-time 5 https://go.dev/dl/?mode=json 2>/dev/null | grep -oP '"version":"go\K[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)
+    GO_TARBALL="go${LATEST}.linux-amd64.tar.gz"
+    curl -sL "https://go.dev/dl/${GO_TARBALL}" -o "/tmp/${GO_TARBALL}" 2>&1
+    mkdir -p /usr/local
+    tar -C /usr/local -xzf "/tmp/${GO_TARBALL}" 2>&1
+    rm -f "/tmp/${GO_TARBALL}"
+    export PATH="/usr/local/go/bin:$PATH"
+    # Add to PATH permanently for root and current user
+    grep -q '/usr/local/go/bin' /etc/profile 2>/dev/null || echo 'export PATH="/usr/local/go/bin:$PATH"' >> /etc/profile
+    grep -q '/usr/local/go/bin' ~/.bashrc 2>/dev/null || echo 'export PATH="/usr/local/go/bin:$PATH"' >> ~/.bashrc
+    command -v go &> /dev/null && ok "go: $(go version 2>/dev/null | grep -oP 'go\K[0-9]+\.[0-9]+(\.[0-9]+)?')" || ko "go: install failed"
+  else
+    ko "go: skipped (required by operator)"
+  fi
+fi
+
+# ─── KUBEBUILDER ─────────────────────────────────────────────────────────────────
+KB_BIN="${HOME}/go/bin/kubebuilder"
+if [ -x "$KB_BIN" ] || command -v kubebuilder &> /dev/null; then
+  KB_PATH=$(command -v kubebuilder 2>/dev/null || echo "$KB_BIN")
+  CURRENT=$("$KB_PATH" version 2>/dev/null | grep -oP 'KubeBuilder:\s+\K\S+')
+  LATEST=$(curl -s --max-time 5 https://api.github.com/repos/kubernetes-sigs/kubebuilder/releases/latest 2>/dev/null | grep -oP '"tag_name": "\K[^"]+' 2>/dev/null | sed 's/^v//')
+  if [ -n "$LATEST" ] && [ "$CURRENT" != "$LATEST" ]; then
+    warn "kubebuilder: ${CURRENT}"
+    hint "latest: ${LATEST}"
+    if ask_yn "Update kubebuilder?"; then
+      info "kubebuilder: updating to ${LATEST}..."
+      go install sigs.k8s.io/kubebuilder/v4@latest 2>&1 | indent
+      NEW=$("$KB_PATH" version 2>/dev/null | grep -oP 'KubeBuilder:\s+\K\S+')
+      [ "$NEW" = "$LATEST" ] && ok "kubebuilder: ${NEW}" || warn "kubebuilder: ${NEW} (update failed)"
+    else
+      ok "kubebuilder: ${CURRENT} (skipped)"
+    fi
+  else
+    ok "kubebuilder: ${CURRENT}"
+  fi
+else
+  warn "kubebuilder: not installed"
+  if ask_yn "Install kubebuilder?"; then
+    info "kubebuilder: installing latest..."
+    go install sigs.k8s.io/kubebuilder/v4@latest 2>&1 | indent
+    [ -x "$KB_BIN" ] && ok "kubebuilder: $("$KB_BIN" version 2>/dev/null | grep -oP 'KubeBuilder:\s+\K\S+')" || ko "kubebuilder: install failed"
+  else
+    ko "kubebuilder: skipped (required by operator)"
+  fi
+fi
+
 # ─── TASK ────────────────────────────────────────────────────────────────────────
 TASK_BIN="/usr/local/bin/task"
 if [ -x "$TASK_BIN" ]; then
@@ -231,6 +305,25 @@ else
     command -v k3s &> /dev/null && ok "k3s: $(k3s --version 2>/dev/null | head -1 | awk '{print $3}')" || ko "k3s: install failed"
   else
     ko "k3s: skipped"
+  fi
+fi
+
+# ─── OPEN-ISCSI (Longhorn dependency) ───────────────────────────────────────────
+if dpkg -s open-iscsi &>/dev/null 2>&1 || rpm -q iscsi-initiator-utils &>/dev/null 2>&1; then
+  ok "open-iscsi: installed"
+else
+  warn "open-iscsi: not installed (required by Longhorn)"
+  if ask_yn "Install open-iscsi?"; then
+    info "open-iscsi: installing..."
+    command -v apt-get &> /dev/null && apt-get update -qq > /dev/null 2>&1 && apt-get install -y -qq open-iscsi > /dev/null 2>&1
+    command -v dnf &> /dev/null && dnf install -y -q iscsi-initiator-utils > /dev/null 2>&1
+    command -v yum &> /dev/null && yum install -y -q iscsi-initiator-utils > /dev/null 2>&1
+    systemctl enable --now iscsid 2>/dev/null
+    systemctl enable --now iscsi 2>/dev/null
+    dpkg -s open-iscsi &>/dev/null 2>&1 || rpm -q iscsi-initiator-utils &>/dev/null 2>&1 \
+      && ok "open-iscsi: installed" || ko "open-iscsi: install failed"
+  else
+    ko "open-iscsi: skipped (Longhorn will not work)"
   fi
 fi
 

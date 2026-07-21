@@ -6,16 +6,10 @@ tasks:
     cmds:
       - task --list
 
-  setup:
-    desc: Full cluster setup (install + deploy + configure)
-    silent: true
-    vars:
-      ENV: '{{.ENV | default "dev"}}'
-    cmds:
-      - bash task/setup.sh {{.ENV}}
+  # ─── INFRASTRUCTURE ────────────────────────────────────────────────────────────
 
   install:
-    desc: Install prerequisites (curl, kubectl, k3s, k9s, task)
+    desc: Install prerequisites (curl, kubectl, k3s, go, kubebuilder, k9s, open-iscsi)
     silent: true
     cmds:
       - bash task/install.sh
@@ -26,52 +20,131 @@ tasks:
     cmds:
       - bash task/uninstall.sh
 
+  cert-manager-install:
+    desc: Install cert-manager from upstream manifests
+    silent: true
+    cmds:
+      - bash task/cert-manager-install.sh
+
+  longhorn-install:
+    desc: Install Longhorn storage via Kustomize
+    silent: true
+    cmds:
+      - kubectl apply -k base/longhorn/
+      - kubectl wait --for=condition=Ready pod -l app=longhorn-manager -n longhorn-system --timeout=300s
+
+  longhorn-status:
+    desc: Show Longhorn status
+    silent: true
+    cmds:
+      - kubectl get pods -n longhorn-system
+      - kubectl get storageclass longhorn
+
+  # ─── OPERATOR ──────────────────────────────────────────────────────────────────
+
+  operator-init:
+    desc: Initialize kubebuilder operator project
+    silent: true
+    cmds:
+      - bash task/operator-init.sh
+
+  operator-generate:
+    desc: Regenerate CRD manifests and deepcopy methods
+    silent: true
+    cmds:
+      - cd operator && make generate manifests
+
+  operator-build:
+    desc: Build the operator binary
+    silent: true
+    cmds:
+      - cd operator && go build -o bin/manager ./cmd/manager
+
+  operator-run:
+    desc: Run the operator locally (outside cluster)
+    silent: true
+    cmds:
+      - cd operator && make run
+
+  operator-install:
+    desc: Build, load image and deploy operator to cluster
+    silent: true
+    cmds:
+      - cd operator && make docker-build IMG=ninekube/operator:dev
+      - task: operator-load-image
+      - cd operator && make install
+      - cd operator && make deploy IMG=ninekube/operator:dev
+
+  operator-load-image:
+    desc: Load operator Docker image into k3s containerd and restart (needs sudo)
+    silent: true
+    cmds:
+      - docker save ninekube/operator:dev | sudo k3s ctr images import -
+      - kubectl rollout restart deployment/ninekube-operator-controller-manager -n ninekube-operator-system
+
+  operator-uninstall:
+    desc: Uninstall operator from cluster
+    silent: true
+    cmds:
+      - cd operator && make undeploy IMG=ninekube/operator:dev
+      - cd operator && make uninstall
+
+  operator-test:
+    desc: Run operator unit tests
+    silent: true
+    cmds:
+      - cd operator && make test
+
+  # ─── CLIENT MANAGEMENT ─────────────────────────────────────────────────────────
+
+  client-create:
+    desc: Create a client namespace (apply ClientNamespace CR)
+    silent: true
+    vars:
+      NAME: '{{.NAME}}'
+      FILE: '{{.FILE | default ""}}'
+    cmds:
+      - |
+        if [ -n "{{.FILE}}" ]; then
+          kubectl apply -f {{.FILE}}
+        elif [ -n "{{.NAME}}" ]; then
+          kubectl apply -f config/samples/provisioning_v1alpha1_clientnamespace.yaml
+        fi
+        echo "ClientNamespace applied. Check status with: kubectl get cn"
+
+  client-delete:
+    desc: Delete a client namespace (remove ClientNamespace CR)
+    silent: true
+    vars:
+      NAME: '{{.NAME}}'
+    cmds:
+      - kubectl delete cn {{.NAME}}
+
+  client-list:
+    desc: List all client namespaces
+    silent: true
+    cmds:
+      - kubectl get cn -o wide
+
+  client-status:
+    desc: Show detailed status of a client namespace
+    silent: true
+    vars:
+      NAME: '{{.NAME}}'
+    cmds:
+      - kubectl get cn {{.NAME}} -o yaml
+      - echo "---"
+      - kubectl get all,pvc,ingress,secret -n {{.NAME}}-ns
+
+  # ─── CONFIGURATION ─────────────────────────────────────────────────────────────
+
   config-set:
-    desc: Configure secrets and kubeconfig
+    desc: Configure global settings (domain, cert type, etc.)
     silent: true
     cmds:
       - bash task/config-set.sh
 
-  deploy:
-    desc: Deploy dev overlay via kustomize
-    silent: true
-    vars:
-      ENV: '{{.ENV | default "dev"}}'
-    cmds:
-      - bash task/deploy.sh {{.ENV}}
-
-  service-predeploy:
-    desc: Pre-deploy a service (namespaces, secrets, configmaps)
-    silent: true
-    vars:
-      SERVICE: '{{.SERVICE}}'
-      ENV: '{{.ENV | default "dev"}}'
-    cmds:
-      - bash task/predeploy-{{.SERVICE}}.sh {{.ENV}}
-
-  service-postdeploy:
-    desc: Post-deploy a service (DNS, OIDC, ingress, etc.)
-    silent: true
-    vars:
-      SERVICE: '{{.SERVICE}}'
-      ENV: '{{.ENV | default "dev"}}'
-    cmds:
-      - bash task/postdeploy-{{.SERVICE}}.sh {{.ENV}}
-
-  service-deploy:
-    desc: Full deploy pipeline for a service (predeploy + deploy + postdeploy)
-    silent: true
-    vars:
-      SERVICE: '{{.SERVICE}}'
-      ENV: '{{.ENV | default "dev"}}'
-    cmds:
-      - bash task/service-deploy.sh {{.SERVICE}} {{.ENV}}
-
-  service-list:
-    desc: List available services and their status
-    silent: true
-    cmds:
-      - bash task/service-list.sh
+  # ─── UTILITIES ─────────────────────────────────────────────────────────────────
 
   build:
     desc: Build and push custom Docker image for a service
@@ -81,60 +154,30 @@ tasks:
     cmds:
       - bash task/build-${SERVICE}.sh
 
-  service-enable:
-    desc: Enable a service (symlink + kustomize)
-    silent: true
-    vars:
-      SERVICE: '{{.SERVICE}}'
-    cmds:
-      - bash task/service-enable.sh {{.SERVICE}}
-
-  service-disable:
-    desc: Disable a service
-    silent: true
-    vars:
-      SERVICE: '{{.SERVICE}}'
-    cmds:
-      - bash task/service-disable.sh {{.SERVICE}}
-
-  delete-dev:
-    desc: Delete dev overlay
-    silent: true
-    cmds:
-      - bash task/delete.sh dev
-
-  delete-prod:
-    desc: Delete prod overlay
-    silent: true
-    cmds:
-      - bash task/delete.sh prod
-
   status:
-    desc: Show cluster status
+    desc: Show cluster status (all client namespaces)
     silent: true
     cmds:
       - bash task/status.sh
 
   logs:
-    desc: Show pod logs
+    desc: Show pod logs (all client namespaces)
     silent: true
     cmds:
       - bash task/logs.sh
 
   backup:
-    desc: Backup PVC data and/or databases for a service (or all)
+    desc: Backup PVC data and/or databases for a client
     silent: true
     vars:
-      SERVICE: '{{.SERVICE | default ""}}'
-      BACKUP_PVC: '{{.BACKUP_PVC | default ""}}'
-      BACKUP_DB: '{{.BACKUP_DB | default ""}}'
+      CLIENT: '{{.CLIENT | default ""}}'
     cmds:
-      - BACKUP_PVC="{{.BACKUP_PVC}}" BACKUP_DB="{{.BACKUP_DB}}" bash task/backup.sh {{.SERVICE}}
+      - bash task/backup.sh {{.CLIENT}}
 
   restore:
-    desc: Restore PVC data and/or databases for a service (or all)
+    desc: Restore PVC data and/or databases for a client
     silent: true
     vars:
-      SERVICE: '{{.SERVICE | default ""}}'
+      CLIENT: '{{.CLIENT | default ""}}'
     cmds:
-      - bash task/restore.sh {{.SERVICE}}
+      - bash task/restore.sh {{.CLIENT}}

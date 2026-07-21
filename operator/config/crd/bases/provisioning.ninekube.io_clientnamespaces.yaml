@@ -1,0 +1,442 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.21.0
+  name: clientnamespaces.provisioning.ninekube.io
+spec:
+  group: provisioning.ninekube.io
+  names:
+    kind: ClientNamespace
+    listKind: ClientNamespaceList
+    plural: clientnamespaces
+    shortNames:
+    - cn
+    singular: clientnamespace
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .spec.domain
+      name: Domain
+      type: string
+    - jsonPath: .spec.plan
+      name: Plan
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          ClientNamespace is the Schema for the clientnamespaces API.
+          It provisions an isolated namespace with a full ninekube service stack for a client.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of ClientNamespace.
+            properties:
+              admin:
+                description: admin configures the admin user for this client namespace.
+                properties:
+                  email:
+                    description: email is the admin email address (required for OIDC,
+                      password reset, etc.).
+                    format: email
+                    type: string
+                  passwordSecretRef:
+                    description: |-
+                      passwordSecretRef references a Secret containing the admin password.
+                      The Secret must contain a key "password".
+                      If not set, the operator auto-generates a random password and stores it
+                      in a Secret named "{clientName}-admin-credentials" in the client namespace.
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  username:
+                    default: admin
+                    description: username is the admin username. Defaults to "admin".
+                    minLength: 1
+                    type: string
+                required:
+                - email
+                type: object
+              cert:
+                description: cert configures TLS certificates for all services in
+                  this namespace.
+                properties:
+                  issuerRef:
+                    description: issuerRef is the cert-manager ClusterIssuer name
+                      when type is "letsencrypt".
+                    type: string
+                  secretName:
+                    description: |-
+                      secretName is the name of the TLS Secret to use when type is "secret".
+                      The Secret must contain keys "tls.crt", "tls.key", and optionally "ca.crt".
+                    type: string
+                  type:
+                    default: selfsigned
+                    description: |-
+                      type defines how certificates are provisioned.
+                      - selfsigned: operator generates a self-signed CA + wildcard cert
+                      - letsencrypt: operator creates a cert-manager Certificate with Let's Encrypt
+                      - secret: operator uses a user-provided TLS Secret
+                    enum:
+                    - selfsigned
+                    - letsencrypt
+                    - secret
+                    type: string
+                required:
+                - type
+                type: object
+              domain:
+                description: |-
+                  domain is the base domain for this client (e.g. "acme.ninekube.io").
+                  Ingresses will be created as {service}.{domain}.
+                minLength: 3
+                type: string
+              plan:
+                description: plan determines resource sizing for all services in this
+                  namespace.
+                enum:
+                - starter
+                - standard
+                - premium
+                type: string
+              services:
+                description: services defines which services to provision.
+                properties:
+                  dex:
+                    description: dex is the Dex OIDC provider (backed by Glauth LDAP).
+                    properties:
+                      enabled:
+                        default: true
+                        description: |-
+                          enabled toggles Dex provisioning for this client.
+                          Dex provides OIDC authentication, backed by Glauth as LDAP connector.
+                        type: boolean
+                    required:
+                    - enabled
+                    type: object
+                  dolibarr:
+                    description: dolibarr is the Dolibarr ERP/CRM (optional).
+                    properties:
+                      enabled:
+                        default: false
+                        description: enabled toggles Dolibarr provisioning for this
+                          client.
+                        type: boolean
+                      s3PrimaryStorage:
+                        default: true
+                        description: s3PrimaryStorage uses RustFS as primary storage.
+                        type: boolean
+                    required:
+                    - enabled
+                    type: object
+                  glauth:
+                    description: glauth is the Glauth LDAP server.
+                    properties:
+                      enabled:
+                        default: true
+                        description: enabled toggles Glauth provisioning for this
+                          client.
+                        type: boolean
+                    required:
+                    - enabled
+                    type: object
+                  nextcloud:
+                    description: nextcloud is the Nextcloud file sharing service (optional).
+                    properties:
+                      enabled:
+                        default: false
+                        description: enabled toggles Nextcloud provisioning for this
+                          client.
+                        type: boolean
+                      s3PrimaryStorage:
+                        default: true
+                        description: |-
+                          s3PrimaryStorage uses RustFS as primary storage instead of PVC.
+                          When true, data is stored in S3 buckets; local emptyDir is used for plugins.
+                        type: boolean
+                    required:
+                    - enabled
+                    type: object
+                  ninegate:
+                    description: ninegate is the Ninegate identity/management application.
+                    properties:
+                      enabled:
+                        default: true
+                        description: enabled toggles Ninegate provisioning for this
+                          client.
+                        type: boolean
+                    required:
+                    - enabled
+                    type: object
+                  postgresql:
+                    description: postgresql is the PostgreSQL database service (always
+                      provisioned if enabled).
+                    properties:
+                      enabled:
+                        default: true
+                        description: enabled toggles PostgreSQL provisioning for this
+                          client.
+                        type: boolean
+                      storageSize:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: storageSize overrides the default PVC size for
+                          PostgreSQL data.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                    required:
+                    - enabled
+                    type: object
+                  redis:
+                    description: redis is the Redis caching service.
+                    properties:
+                      enabled:
+                        default: true
+                        description: enabled toggles Redis provisioning for this client.
+                        type: boolean
+                    required:
+                    - enabled
+                    type: object
+                  rustfs:
+                    description: rustfs is the RustFS S3-compatible object storage.
+                    properties:
+                      enabled:
+                        default: true
+                        description: enabled toggles RustFS provisioning for this
+                          client.
+                        type: boolean
+                      storageSize:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: storageSize overrides the default PVC size for
+                          RustFS data.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                    required:
+                    - enabled
+                    type: object
+                  wordpress:
+                    description: wordpress is the WordPress CMS (optional).
+                    properties:
+                      enabled:
+                        default: false
+                        description: enabled toggles WordPress provisioning for this
+                          client.
+                        type: boolean
+                      s3PrimaryStorage:
+                        default: true
+                        description: s3PrimaryStorage uses RustFS as primary storage
+                          via FUSE or plugin.
+                        type: boolean
+                    required:
+                    - enabled
+                    type: object
+                type: object
+              storage:
+                description: storage configures S3 and PVC storage for this client.
+                properties:
+                  postgresRootPassword:
+                    description: |-
+                      postgresRootPassword overrides the auto-generated PostgreSQL root password.
+                      If not set, a random password is generated and stored in "{clientName}-postgres-secret".
+                    type: string
+                  pvcSize:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    default: 10Gi
+                    description: pvcSize is the default PVC size for stateful services.
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  rustfsBucketPrefix:
+                    description: |-
+                      rustfsBucketPrefix is the prefix for RustFS (S3) bucket names.
+                      Buckets will be named: {prefix}-{service} (e.g. "acme-nextcloud-data").
+                    minLength: 1
+                    pattern: ^[a-z0-9][a-z0-9-]*[a-z0-9]$
+                    type: string
+                  rustfsRootPassword:
+                    description: |-
+                      rustfsRootPassword overrides the auto-generated RustFS root password.
+                      If not set, a random password is generated and stored in "{clientName}-rustfs-secret".
+                    type: string
+                  storageClass:
+                    default: longhorn
+                    description: |-
+                      storageClass is the StorageClass to use for PVCs (PostgreSQL, RustFS).
+                      Defaults to "longhorn" if not set.
+                    type: string
+                required:
+                - rustfsBucketPrefix
+                type: object
+            required:
+            - admin
+            - domain
+            - plan
+            type: object
+          status:
+            description: status defines the observed state of ClientNamespace.
+            properties:
+              adminSecretName:
+                description: |-
+                  adminSecretName is the name of the Secret containing admin credentials
+                  in the client namespace ({clientName}-admin-credentials).
+                type: string
+              certSecretName:
+                description: |-
+                  certSecretName is the name of the Secret containing TLS certificates
+                  in the client namespace.
+                type: string
+              conditions:
+                description: conditions represent the latest available observations
+                  of the resource's state.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              endpoint:
+                description: endpoint is the base URL for accessing this client's
+                  services.
+                type: string
+              namespace:
+                description: namespace is the name of the Kubernetes namespace created
+                  for this client.
+                type: string
+              phase:
+                description: phase is the current provisioning phase of the client
+                  namespace.
+                enum:
+                - Pending
+                - Provisioning
+                - Ready
+                - Failed
+                type: string
+              services:
+                description: services reports the status of each provisioned service.
+                items:
+                  description: ServiceStatus describes the status of a single service.
+                  properties:
+                    message:
+                      description: message provides additional context about the service
+                        status.
+                      type: string
+                    name:
+                      description: name is the service name (e.g. "postgresql", "nextcloud").
+                      type: string
+                    ready:
+                      description: ready indicates if the service is fully provisioned
+                        and healthy.
+                      type: boolean
+                  required:
+                  - name
+                  - ready
+                  type: object
+                type: array
+            type: object
+        required:
+        - metadata
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

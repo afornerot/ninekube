@@ -1,0 +1,57 @@
+apiVersion: provisioning.ninekube.io/v1alpha1
+kind: ClientNamespace
+metadata:
+  name: acme-corp
+  labels:
+    app.kubernetes.io/name: ninekube-operator
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  domain: acme.ninekube.io
+  plan: standard
+
+  cert:
+    # selfsigned: auto-generate self-signed certs (default)
+    # letsencrypt: use cert-manager + Let's Encrypt
+    # secret: use a user-provided TLS Secret
+    type: selfsigned
+
+  admin:
+    email: admin@acme.com
+    username: admin
+    # Optional: reference an existing Secret with the password
+    # passwordSecretRef:
+    #   name: my-admin-secret
+    #   key: password
+
+  storage:
+    rustfsBucketPrefix: acme
+    storageClass: longhorn
+    pvcSize: 10Gi
+    # Optional: override auto-generated root passwords
+    # postgresRootPassword: my-super-secret-pg-pass
+    # rustfsRootPassword: my-super-secret-s3-pass
+
+  services:
+    postgresql:
+      enabled: true
+      # storageSize: 20Gi  # override default
+    redis:
+      enabled: true
+    rustfs:
+      enabled: true
+      # storageSize: 50Gi  # override default
+    ninegate:
+      enabled: true
+    glauth:
+      enabled: true
+    dex:
+      enabled: true
+    nextcloud:
+      enabled: false
+      s3PrimaryStorage: true
+    wordpress:
+      enabled: false
+      s3PrimaryStorage: true
+    dolibarr:
+      enabled: false
+      s3PrimaryStorage: true
