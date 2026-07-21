@@ -324,10 +324,14 @@ func (r *ClientNamespaceReconciler) ensureNinegateSecret(ctx context.Context, cn
 		if pass, ok := adminSecret.Data["password"]; ok && len(pass) > 0 {
 			adminPass = string(pass)
 		}
+	} else {
+		// Fallback: generate if secret not found yet
+		adminPass, _ = generateRandomPassword(24)
 	}
 
-	// Generate a stable app-secret
+	// Generate secrets
 	appSecret, _ := generateRandomPassword(32)
+	oidcClientSecret, _ := generateRandomPassword(32)
 
 	domain := cn.Spec.Domain
 	databaseURL := fmt.Sprintf("postgresql://root:%s@postgresql:5432/ninegate?serverVersion=16", pgPass)
@@ -349,7 +353,7 @@ func (r *ClientNamespaceReconciler) ensureNinegateSecret(ctx context.Context, cn
 			"app-admin-password": adminPass,
 			"database-url":       databaseURL,
 			"ldap-base":          ldapBaseDN,
-			"oidc-client-secret": "changeme",
+			"oidc-client-secret": oidcClientSecret,
 			"default-uri":        fmt.Sprintf("https://ninegate.%s", domain),
 			"oidc-issuer":        fmt.Sprintf("https://dex.%s", domain),
 			"oidc-redirect-uri":  fmt.Sprintf("https://ninegate.%s/callback", domain),

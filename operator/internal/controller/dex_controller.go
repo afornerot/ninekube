@@ -97,6 +97,8 @@ func (r *DexReconciler) ensureConfigSecret(ctx context.Context, cn *provisioning
 		if pass, ok := adminSecret.Data["password"]; ok && len(pass) > 0 {
 			adminPass = string(pass)
 		}
+	} else {
+		adminPass, _ = generateRandomPassword(24)
 	}
 
 	// Read app-secret from ninegate-secret for OIDC client secret
@@ -106,7 +108,13 @@ func (r *DexReconciler) ensureConfigSecret(ctx context.Context, cn *provisioning
 		if sec, ok := ngSecret.Data["app-secret"]; ok && len(sec) > 0 {
 			ninegateClientSecret = string(sec)
 		}
+	} else {
+		ninegateClientSecret, _ = generateRandomPassword(32)
 	}
+
+	// Generate client secrets for optional services
+	nextcloudSecret, _ := generateRandomPassword(32)
+	tfmSecret, _ := generateRandomPassword(32)
 
 	ldapBaseDN := replaceDotsWithDC(domain)
 
@@ -173,16 +181,16 @@ staticClients:
     redirectURIs:
       - "https://ninegate.%s/callback"
   - id: nextcloud
-    secret: "changeme"
+    secret: "%s"
     name: Nextcloud
     redirectURIs:
       - "https://nextcloud.%s/index.php/login/via oidc_login/"
   - id: tinyfilemanager
-    secret: "changeme"
+    secret: "%s"
     name: Tiny File Manager
     redirectURIs:
       - "https://files.%s/oauth2/callback"
-`, domain, domain, ldapBaseDN, adminPass, ldapBaseDN, ldapBaseDN, ninegateClientSecret, domain, domain, domain)
+`, domain, domain, ldapBaseDN, adminPass, ldapBaseDN, ldapBaseDN, ninegateClientSecret, domain, nextcloudSecret, domain, tfmSecret, domain)
 
 	secret = corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
