@@ -64,6 +64,8 @@ type ClientNamespaceReconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=traefik.io,resources=ingressroutetcps,verbs=get;list;watch;create;update;patch;delete
 
 func (r *ClientNamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
@@ -132,18 +134,20 @@ func (r *ClientNamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return r.setFailed(ctx, &cn, "NinegateSecretFailed", err)
 	}
 
-	// Ensure TLS certificates
-	if err := r.ensureCertificates(ctx, &cn, nsName, "tls"); err != nil {
+	// Ensure CA and service certificates
+	if err := r.ensureCA(ctx, &cn, nsName); err != nil {
+		return r.setFailed(ctx, &cn, "CAFailed", err)
+	}
+	if err := r.ensureServiceCerts(ctx, &cn, nsName); err != nil {
 		return r.setFailed(ctx, &cn, "CertFailed", err)
 	}
-	cn.Status.CertSecretName = "tls"
 
 	// Ensure optional service infrastructure from catalog (DBs, buckets, Dex clients)
 	if err := r.reconcileOptionalServices(ctx, &cn, nsName); err != nil {
 		return r.setFailed(ctx, &cn, "OptionalServicesFailed", err)
 	}
 
-	// Reconcile all services
+	// Reconcile all services (deployments, services, configmaps)
 	for i, svc := range r.Services {
 		svcName := serviceName(i)
 		if err := svc.Reconcile(ctx, &cn); err != nil {
@@ -155,6 +159,16 @@ func (r *ClientNamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			return r.setFailed(ctx, &cn, fmt.Sprintf("%sFailed", svcName), err)
 		}
 		r.updateServiceStatus(&cn, svcName, true, "")
+	}
+
+	// Ensure Ingress resources
+	if err := r.ensureIngresses(ctx, &cn, nsName); err != nil {
+		return r.setFailed(ctx, &cn, "IngressFailed", err)
+	}
+
+	// Ensure NetworkPolicies
+	if err := r.ensureNetworkPolicies(ctx, &cn, nsName); err != nil {
+		return r.setFailed(ctx, &cn, "NetworkPolicyFailed", err)
 	}
 
 	// Mark as ready
@@ -667,13 +681,32 @@ func (r *ClientNamespaceReconciler) updateServiceStatus(cn *provisioningv1alpha1
 
 func (r *ClientNamespaceReconciler) setFailed(ctx context.Context, cn *provisioningv1alpha1.ClientNamespace, reason string, err error) (ctrl.Result, error) {
 	cn.Status.Phase = provisioningv1alpha1.PhaseFailed
-	cn.Status.Conditions = append(cn.Status.Conditions, metav1.Condition{
-		Type:               "Ready",
-		Status:             metav1.ConditionFalse,
-		LastTransitionTime: metav1.Now(),
-		Reason:             reason,
-		Message:            err.Error(),
-	})
+
+	// Update existing "Ready" condition or append new one
+	found := false
+	for i, c := range cn.Status.Conditions {
+		if c.Type == "Ready" {
+			cn.Status.Conditions[i] = metav1.Condition{
+				Type:               "Ready",
+				Status:             metav1.ConditionFalse,
+				LastTransitionTime: metav1.Now(),
+				Reason:             reason,
+				Message:            err.Error(),
+			}
+			found = true
+			break
+		}
+	}
+	if !found {
+		cn.Status.Conditions = append(cn.Status.Conditions, metav1.Condition{
+			Type:               "Ready",
+			Status:             metav1.ConditionFalse,
+			LastTransitionTime: metav1.Now(),
+			Reason:             reason,
+			Message:            err.Error(),
+		})
+	}
+
 	if statusErr := r.Status().Update(ctx, cn); statusErr != nil {
 		logf.FromContext(ctx).Error(statusErr, "Failed to update status")
 	}

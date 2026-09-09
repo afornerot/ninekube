@@ -46,6 +46,7 @@ rules:
   - networking.k8s.io
   resources:
   - ingresses
+  - networkpolicies
   verbs:
   - create
   - delete
@@ -80,3 +81,15 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - traefik.io
+  resources:
+  - ingressroutetcps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch

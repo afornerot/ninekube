@@ -136,6 +136,14 @@ tasks:
       - echo "---"
       - kubectl get all,pvc,ingress,secret -n {{.NAME}}-ns
 
+  client-ca:
+    desc: Extract CA certificate from a client namespace
+    silent: true
+    vars:
+      NAME: '{{.NAME}}'
+    cmds:
+      - bash task/client-ca.sh {{.NAME}}
+
   # ─── CONFIGURATION ─────────────────────────────────────────────────────────────
 
   config-set:
