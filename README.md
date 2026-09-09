@@ -168,6 +168,10 @@ task operator-test
 task operator-generate
 ```
 
+## Licence
+
+Ce projet est distribué sous la licence [GNU Affero General Public License v3.0](LICENSE).
+
 ## Structure des controllers
 
 ```
